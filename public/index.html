@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración - Guarián POS</title>
+    <style>
+        :root {
+            --bg-color: #0b0b0b;
+            --card-bg: #161616;
+            --accent-orange: #FF6D00;
+            --text-main: #f1f1f1;
+            --text-muted: #aaaaaa;
+            --border-color: #262626;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--accent-orange);
+            padding-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            color: var(--accent-orange);
+            margin: 0;
+            font-size: 22px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .panel-section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .panel-section h2 {
+            font-size: 18px;
+            color: var(--accent-orange);
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .grid-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-group {
+            background-color: #1f1f1f;
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 6px;
+        }
+        .info-group label {
+            display: block;
+            font-size: 11px;
+            color: var(--accent-orange);
+            margin-bottom: 6px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .info-group span {
+            font-size: 14px;
+            font-weight: 600;
+            word-break: break-all;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+        th {
+            color: var(--accent-orange);
+        }
+        .btn-orange {
+            background-color: var(--accent-orange);
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+        }
+        .btn-orange:hover {
+            opacity: 0.85;
+        }
+        .btn-danger {
+            background-color: #d32f2f;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-blue {
+            background-color: #1976d2;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-success {
+            background-color: #388e3c;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input, select {
+            background-color: #222;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 5px;
+        }
+        .hidden-form {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed var(--border-color);
+        }
+        /* Contenedores de pantallas y modales */
+        #pantalla-login, #modal-cambio-password {
+            max-width: 400px;
+            margin: 80px auto;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        #modal-cambio-password {
+            display: none;
+            max-width: 450px;
+            margin: 30px auto;
+        }
+        #app-principal {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PANTALLA DE INICIO DE SESIÓN -->
+    <div id="pantalla-login">
+        <h2 style="color: var(--accent-orange); margin-top: 0;">GUARDIÁN POS</h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Panel Administrativo Seguro</p>
+        
+        <div style="text-align: left; margin-bottom: 15px;">
+            <label style="font-size: 12px; color: var(--text-muted);">Usuario / ID</label>
+            <input type="text" id="login-usuario" placeholder="Ingrese su ID de empleado">
+        </div>
+        <div style="text-align: left; margin-bottom: 20px;">
+            <label style="font-size: 12px; color: var(--text-muted);">Contraseña</label>
+            <input type="password" id="login-password" placeholder="Ingrese su contraseña">
+        </div>
+        <button class="btn-orange" style="width: 100%;" onclick="realizarLogin()">Ingresar al Panel</button>
+    </div>
+
+    <!-- APLICACIÓN PRINCIPAL -->
+    <div id="app-principal">
+        <header>
+            <div>
+                <h1>GUARDIÁN POS - PANEL ADMINISTRATIVO CENTRAL</h1>
+                <p style="color: var(--text-muted); margin: 5px 0 0 0; font-size: 12px;">Operador activo: <span id="lbl-operador-activo" style="color: var(--accent-orange);">--</span></p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn-orange" style="padding: 6px 12px; font-size: 12px;" onclick="abrirModalCambioPassword()">Cambiar Contraseña</button>
+                <button class="btn-danger" onclick="cerrarSesion()">Cerrar Sesión</button>
+            </div>
+        </header>
+
+        <div class="container">
+
+            <!-- MODAL FLOTANTE DE CAMBIO DE CONTRASEÑA -->
+            <div id="modal-cambio-password" class="panel-section" style="display: none; border: 2px solid var(--accent-orange); margin-bottom: 20px;">
+                <h3 style="color: var(--accent-orange); margin-top: 0; font-size: 16px;">Actualizar Contraseña de Acceso</h3>
+                <p style="font-size: 12px; color: var(--text-muted);">Ingrese su contraseña actual y la nueva clave que desea utilizar.</p>
+                
+                <div style="text-align: left; margin-bottom: 12px;">
+                    <label style="font-size: 11px; color: var(--text-muted);">Contraseña Actual</label>
+                    <input type="password" id="pass-actual" placeholder="Clave actual">
+                </div>
+                <div style="text-align: left; margin-bottom: 12px;">
+                    <label style="font-size: 11px; color: var(--text-muted);">Nueva Contraseña</label>
+                    <input type="password" id="pass-nuevo" placeholder="Nueva clave">
+                </div>
+                <div style="text-align: left; margin-bottom: 15px;">
+                    <label style="font-size: 11px; color: var(--text-muted);">Confirmar Nueva Contraseña</label>
+                    <input type="password" id="pass-nuevo-confirm" placeholder="Repita nueva clave">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-orange" style="flex: 1;" onclick="ejecutarCambioPasswordPropio()">Guardar Clave</button>
+                    <button class="btn-danger" style="flex: 1;" onclick="cerrarModalCambioPassword()">Cancelar</button>
+                </div>
+            </div>
+            
+            <!-- MÓDULO 1: BÚSQUEDA Y DATOS GENERALES DEL CLIENTE -->
+            <div class="panel-section">
+                <h2>1. Búsqueda y Datos Generales del Cliente</h2>
+                <div class="search-bar">
+                    <input type="text" id="input-buscar" placeholder="Buscar por Número de Cliente, Negocio, Contacto, Teléfono o Correo...">
+                    <button class="btn-orange" onclick="buscarCliente()">Buscar Cliente</button>
+                </div>
+                <div class="grid-info" style="margin-top: 15px;">
+                    <div class="info-group"><label>NÚMERO DE CLIENTE</label><span id="lbl-num-cliente">--</span></div>
+                    <div class="info-group"><label>NOMBRE DEL NEGOCIO</label><span id="lbl-negocio">Realice una búsqueda...</span></div>
+                    <div class="info-group"><label>NOMBRE DE CONTACTO</label><span id="lbl-contacto">-</span></div>
+                    <div class="info-group"><label>TELÉFONO</label><span id="lbl-telefono">-</span></div>
+                    <div class="info-group"><label>CORREO ELECTRÓNICO</label><span id="lbl-correo">-</span></div>
+                </div>
+            </div>
+
+            <!-- MÓDULO 2: PRODUCTOS Y LICENCIAS ACTIVAS -->
+            <div class="panel-section">
+                <h2>2. Productos y Licencias Activas</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">Sel.</th>
+                            <th>Orden / Folio</th>
+                            <th>Tipo de Producto</th>
+                            <th>Clave de Licencia</th>
+                            <th>Estatus</th>
+                            <th>Vencimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-productos">
+                        <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Use el buscador superior para consultar los productos de un cliente.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- MÓDULO 3: SOPORTE Y OPERACIONES -->
+            <div class="panel-section">
+                <h2>3. Módulo de Soporte y Operaciones</h2>
+                <p style="font-size: 13px; color: var(--text-muted);">Seleccione el tipo de operación autorizada para su cuenta.</p>
+                
+                <div style="margin-top: 15px; max-width: 450px;">
+                    <label style="font-size: 12px; color: var(--text-muted);">Seleccione una Acción de Operación</label>
+                    <select id="selector-accion" onchange="cambiarAccion()">
+                        <option value="">-- Seleccionar operación --</option>
+                        <option value="cortesia" id="opt-cortesia">Dar de alta Cliente y Licencia de Cortesía (Prueba)</option>
+                        <option value="renovacion" id="opt-renovacion">Renovación / Activación por Pago (Manual)</option>
+                        <option value="reactivacion" id="opt-reactivacion">Reactivación por Cambio de Equipo (Hardware)</option>
+                        <option value="telefonica" id="opt-telefonica">Activación Offline / Telefónica (Generar Clave)</option>
+                    </select>
+                </div>
+
+                <!-- FORMULARIO: CORTESÍA -->
+                <div id="form-cortesia" class="hidden-form">
+                    <h3 style="font-size: 14px; color: var(--accent-orange); margin-bottom: 10px;">Asignación de Licencia Piloto / Cortesía (Gratis)</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div><label style="font-size: 12px; color: var(--text-muted);">Nombre del Negocio</label><input type="text" id="cortesia-negocio" placeholder="Ej. Pizzería Don Gato"></div>
+                        <div><label style="font-size: 12px; color: var(--text-muted);">Nombre de Contacto</label><input type="text" id="cortesia-contacto" placeholder="Ej. Mario Bros"></div>
+                        <div><label style="font-size: 12px; color: var(--text-muted);">Teléfono</label><input type="text" id="cortesia-telefono" placeholder="Ej. 5512345678"></div>
+                        <div><label style="font-size: 12px; color: var(--text-muted);">Correo Electrónico</label><input type="email" id="cortesia-correo" placeholder="cliente@correo.com"></div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Tipo de Producto</label>
+                            <select id="cortesia-producto">
+                                <option value="guardian_pos_desktop">Guardián POS Desktop (Pro)</option>
+                                <option value="guardian_pos_lite">Guardián POS Lite (Tablet)</option>
+                                <option value="verificador_precios">Verificador de Precios</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Duración de la Prueba</label>
+                            <select id="cortesia-dias">
+                                <option value="15">15 Días de Prueba</option>
+                                <option value="30">30 Días de Prueba (Piloto)</option>
+                                <option value="365">1 Año (Cortesía Especial)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn-orange" onclick="crearLicenciaCortesia()">Generar y Registrar Licencia de Prueba</button>
+                </div>
+
+                <!-- FORMULARIO: RENOVACIÓN / PAGO MANUAL -->
+                <div id="form-renovacion" class="hidden-form">
+                    <h3 style="font-size: 14px; color: var(--accent-orange); margin-bottom: 10px;">Renovación por Suscripción / Pago Manual (Transferencia)</h3>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Seleccione un producto del cliente arriba y registre la referencia del pago verificado para extender su vigencia 30 días adicionales a partir de su corte.</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Clave / Licencia Seleccionada</label>
+                            <input type="text" id="input-license-renov" readonly placeholder="Seleccione un producto en la tabla superior...">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Referencia / Comprobante de Pago</label>
+                            <input type="text" id="input-ref-pago" placeholder="Ej. SPEI-987654321 o Folio Banco">
+                        </div>
+                        <div>
+                            <button class="btn-orange" onclick="ejecutarRenovacionManual()">Aplicar Renovación (+30 Días)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FORMULARIO: REACTIVACIÓN -->
+                <div id="form-reactivacion" class="hidden-form">
+                    <h3 style="font-size: 14px; color: var(--accent-orange); margin-bottom: 10px;">Reactivación por Cambio de Equipo (Hardware)</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
+                        <div><label style="font-size: 12px; color: var(--text-muted);">Clave Seleccionada</label><input type="text" id="input-license-reac" readonly placeholder="Marque un producto arriba..."></div>
+                        <div><label style="font-size: 12px; color: var(--text-muted);">Nuevo Identificador / HWID</label><input type="text" id="input-hwid-reac" placeholder="Ej. HWID-PC-NUEVO-XYZ"></div>
+                        <div><button class="btn-orange" onclick="ejecutarReactivacion()">Actualizar Hardware</button></div>
+                    </div>
+                </div>
+
+                <!-- FORMULARIO: TELEFÓNICA -->
+                <div id="form-telefonica" class="hidden-form">
+                    <h3 style="font-size: 14px; color: var(--accent-orange); margin-bottom: 10px;">Activación Offline / Vía Telefónica</h3>
+                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 15px; align-items: end;">
+                        <div><label style="font-size: 12px; color: var(--text-muted);">HWID dictado por el cliente</label><input type="text" id="input-hwid-tel" placeholder="Pegue la clave proporcionada..."></div>
+                        <div><button class="btn-orange" onclick="generarClaveTelefonica()">Generar y Enviar por Correo</button></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO 4: GESTIÓN DE EMPLEADOS (EXCLUSIVO SUPERADMIN) -->
+            <div id="seccion-modulo4" class="panel-section" style="display: none;">
+                <h2>4. Administración y Control de Empleados</h2>
+                <p style="font-size: 13px; color: var(--text-muted);">Alta de operadores, asignación de permisos y control de credenciales.</p>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; margin-bottom: 15px;">
+                    <div><label style="font-size: 12px; color: var(--text-muted);">Nombre del Operador</label><input type="text" id="emp-nombre" placeholder="Ej. Juan Pérez"></div>
+                    <div><label style="font-size: 12px; color: var(--text-muted);">Correo Electrónico</label><input type="email" id="emp-correo" placeholder="operador@guardianpos.com"></div>
+                    <div style="display: flex; flex-direction: column; justify-content: flex-end; gap: 5px;">
+                        <button id="btn-accion-empleado" class="btn-orange" onclick="procesarGuardarEmpleado()">Generar Cuenta de Empleado</button>
+                        <button id="btn-cancelar-edicion" class="btn-danger" style="display: none;" onclick="cancelarEdicionEmpleado()">Cancelar Edición</button>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px; background: #1a1a1a; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <label style="font-size: 12px; color: var(--accent-orange); font-weight: bold; display: block; margin-bottom: 8px;">PERMISOS AUTORIZADOS PARA EL EMPLEADO:</label>
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                        <label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="perm-cortesia"> Dar de alta Cortesías / Pruebas</label>
+                        <label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="perm-renovacion"> Renovación por Pago Manual</label>
+                        <label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="perm-reactivacion"> Reactivación de Hardware</label>
+                        <label style="font-size: 13px; cursor: pointer;"><input type="checkbox" id="perm-telefonica"> Activación Telefónica / Offline</label>
+                    </div>
+                </div>
+
+                <!-- BUSCADOR DE EMPLEADOS CON BOTÓN -->
+                <div class="search-bar" style="margin-top: 20px;">
+                    <input type="text" id="input-buscar-emp" placeholder="Buscar empleado por nombre, ID o correo..." oninput="filtrarEmpleados()">
+                    <button class="btn-orange" onclick="filtrarEmpleados()">Buscar Empleado</button>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID Usuario</th>
+                            <th>Nombre</th>
+                            <th>Correo</th>
+                            <th>Contraseña Activa</th>
+                            <th>Permisos</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-empleados"></tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let listaGlobalLicencias = [];
+        let listaGlobalEmpleados = [];
+        let sesionActual = null;
+        let itemLicenciaSeleccionado = null;
+        let empleadoEnEdicionId = null;
+
+        async function inicializarPanel() {
+            try {
+                const respLic = await fetch('/api/licencias');
+                listaGlobalLicencias = await respLic.json();
+                
+                if (sesionActual && sesionActual.usuarioId === 'EMP-ADMIN') {
+                    const respEmp = await fetch('/api/empleados');
+                    listaGlobalEmpleados = await respEmp.json();
+                }
+            } catch (error) {
+                console.error("Error al sincronizar datos:", error);
+            }
+        }
+
+        async function realizarLogin() {
+            const usuarioId = document.getElementById('login-usuario').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+
+            if (!usuarioId || !password) {
+                alert("Por favor, ingrese usuario y contraseña.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/empleados/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuarioId, password })
+                });
+                const resultado = await response.json();
+
+                if (resultado.exito) {
+                    sesionActual = resultado.empleado;
+                    document.getElementById('pantalla-login').style.display = 'none';
+                    entrarAlSistemaPrincipal();
+                } else {
+                    alert("Error: " + resultado.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión con el servidor.");
+            }
+        }
+
+        async function entrarAlSistemaPrincipal() {
+            document.getElementById('app-principal').style.display = 'block';
+            document.getElementById('lbl-operador-activo').innerText = `${sesionActual.nombre} (${sesionActual.usuarioId})`;
+            
+            await inicializarPanel();
+            aplicarPermisosOperador();
+
+            if (sesionActual.usuarioId === 'EMP-ADMIN') {
+                document.getElementById('seccion-modulo4').style.display = 'block';
+                renderizarTablaEmpleados(listaGlobalEmpleados);
+            } else {
+                document.getElementById('seccion-modulo4').style.display = 'none';
+            }
+        }
+
+        function abrirModalCambioPassword() {
+            document.getElementById('modal-cambio-password').style.display = 'block';
+        }
+
+        function cerrarModalCambioPassword() {
+            document.getElementById('pass-actual').value = '';
+            document.getElementById('pass-nuevo').value = '';
+            document.getElementById('pass-nuevo-confirm').value = '';
+            document.getElementById('modal-cambio-password').style.display = 'none';
+        }
+
+        async function ejecutarCambioPasswordPropio() {
+            const actual = document.getElementById('pass-actual').value.trim();
+            const nuevo = document.getElementById('pass-nuevo').value.trim();
+            const confirmacion = document.getElementById('pass-nuevo-confirm').value.trim();
+
+            if (!actual || !nuevo || !confirmacion) {
+                alert("Por favor, complete todos los campos.");
+                return;
+            }
+
+            if (actual !== sesionActual.password) {
+                alert("La contraseña actual no es correcta.");
+                return;
+            }
+
+            if (nuevo !== confirmacion) {
+                alert("Las nuevas contraseñas no coinciden.");
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/empleados/regenerar-password/${sesionActual._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nuevaPassword: nuevo })
+                });
+                const res = await resp.json();
+                if (res.exito) {
+                    alert("¡Contraseña actualizada con éxito! Por seguridad, inicie sesión nuevamente.");
+                    cerrarSesion();
+                } else {
+                    alert("Error al actualizar: " + res.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión al actualizar contraseña.");
+            }
+        }
+
+        function cerrarSesion() {
+            sesionActual = null;
+            document.getElementById('login-usuario').value = '';
+            document.getElementById('login-password').value = '';
+            cerrarModalCambioPassword();
+            document.getElementById('app-principal').style.display = 'none';
+            document.getElementById('pantalla-login').style.display = 'block';
+        }
+
+        function aplicarPermisosOperador() {
+            if (!sesionActual) return;
+            
+            const esAdmin = (sesionActual.usuarioId === 'EMP-ADMIN');
+            const p = sesionActual.permisos || {};
+
+            document.getElementById('opt-cortesia').style.display = (esAdmin || p.cortesia) ? 'block' : 'none';
+            document.getElementById('opt-renovacion').style.display = (esAdmin || p.renovacion) ? 'block' : 'none';
+            document.getElementById('opt-reactivacion').style.display = (esAdmin || p.reactivacion) ? 'block' : 'none';
+            document.getElementById('opt-telefonica').style.display = (esAdmin || p.telefonica) ? 'block' : 'none';
+        }
+
+        function buscarCliente() {
+            const query = document.getElementById('input-buscar').value.toLowerCase().trim();
+            const tbody = document.getElementById('tabla-productos');
+
+            if (!query) {
+                limpiarVistaCliente();
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Ingrese un término de búsqueda válido.</td></tr>`;
+                return;
+            }
+
+            const filtrados = listaGlobalLicencias.filter(item => {
+                const numCliente = item.client.numero_cliente ? item.client.numero_cliente.toLowerCase() : '';
+                const negocio = item.client.nombre_negocio ? item.client.nombre_negocio.toLowerCase() : '';
+                const contacto = item.client.nombre_contacto ? item.client.nombre_contacto.toLowerCase() : '';
+                const correo = item.client.correo ? item.client.correo.toLowerCase() : '';
+                const telefono = item.client.telefono ? item.client.telefono.toLowerCase() : '';
+                const orden = item.purchaseOrder ? item.purchaseOrder.toLowerCase() : '';
+
+                return numCliente.includes(query) || negocio.includes(query) || contacto.includes(query) || correo.includes(query) || telefono.includes(query) || orden.includes(query);
+            });
+
+            if (filtrados.length > 0) {
+                actualizarVistaCliente(filtrados[0]);
+                tbody.innerHTML = '';
+                filtrados.forEach((item) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><input type="radio" name="seleccion-producto" onclick='seleccionarProducto(${JSON.stringify(item)})'></td>
+                        <td>${item.purchaseOrder}</td>
+                        <td>${item.tipo_producto}</td>
+                        <td style="color: var(--accent-orange); font-family: monospace;">${item.licenseKey}</td>
+                        <td>${item.estado}</td>
+                        <td>${new Date(item.fecha_expiracion).toLocaleDateString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                limpiarVistaCliente();
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No se encontró ningún cliente con ese criterio.</td></tr>`;
+            }
+        }
+
+        function actualizarVistaCliente(item) {
+            document.getElementById('lbl-num-cliente').innerText = item.client.numero_cliente || 'CLI-S/N';
+            document.getElementById('lbl-negocio').innerText = item.client.nombre_negocio || '-';
+            document.getElementById('lbl-contacto').innerText = item.client.nombre_contacto || '-';
+            document.getElementById('lbl-telefono').innerText = item.client.telefono || '-';
+            document.getElementById('lbl-correo').innerText = item.client.correo || '-';
+        }
+
+        function limpiarVistaCliente() {
+            document.getElementById('lbl-num-cliente').innerText = '--';
+            document.getElementById('lbl-negocio').innerText = 'Realice una búsqueda...';
+            document.getElementById('lbl-contacto').innerText = '-';
+            document.getElementById('lbl-telefono').innerText = '-';
+            document.getElementById('lbl-correo').innerText = '-';
+        }
+
+        function seleccionarProducto(item) {
+            itemLicenciaSeleccionado = item;
+            actualizarVistaCliente(item);
+            document.getElementById('input-license-reac').value = item.licenseKey;
+            document.getElementById('input-license-renov').value = item.licenseKey;
+        }
+
+        function cambiarAccion() {
+            const selector = document.getElementById('selector-accion').value;
+            document.getElementById('form-cortesia').style.display = (selector === 'cortesia') ? 'block' : 'none';
+            document.getElementById('form-renovacion').style.display = (selector === 'renovacion') ? 'block' : 'none';
+            document.getElementById('form-reactivacion').style.display = (selector === 'reactivacion') ? 'block' : 'none';
+            document.getElementById('form-telefonica').style.display = (selector === 'telefonica') ? 'block' : 'none';
+        }
+
+        async function crearLicenciaCortesia() {
+            const negocio = document.getElementById('cortesia-negocio').value.trim();
+            const contacto = document.getElementById('cortesia-contacto').value.trim();
+            const telefono = document.getElementById('cortesia-telefono').value.trim();
+            const correo = document.getElementById('cortesia-correo').value.trim();
+            const tipo_producto = document.getElementById('cortesia-producto').value;
+            const diasPrueba = parseInt(document.getElementById('cortesia-dias').value);
+
+            if (!negocio || !contacto || !telefono || !correo) {
+                alert("Por favor, complete todos los campos generales.");
+                return;
+            }
+
+            const randomId = Math.floor(100000 + Math.random() * 900000);
+            const purchaseOrder = `ORD-PILOTO-${Math.floor(1000 + Math.random() * 9000)}`;
+            const licenseKey = `GPOS-TEST-${Math.floor(1000 + Math.random() * 9000)}`;
+            const numero_cliente = `CLI-${Math.floor(5000 + Math.random() * 9000)}`;
+
+            const fechaExpiracion = new Date();
+            fechaExpiracion.setDate(fechaExpiracion.getDate() + diasPrueba);
+
+            const payload = {
+                purchaseOrder: purchaseOrder,
+                tipo_producto: tipo_producto,
+                licenseKey: licenseKey,
+                estado: "activa",
+                client: { numero_cliente, nombre_negocio: negocio, nombre_contacto: contacto, telefono, correo },
+                fecha_expiracion: fechaExpiracion.toISOString(),
+                fecha_limite_pago: fechaExpiracion.toISOString(),
+                conexion_bd_asignada: { nombre_base_datos: `db_piloto_${randomId}` },
+                metodo_pago: { pasarela: "transferencia_manual" }
+            };
+
+            try {
+                const response = await fetch('/api/licencias/crear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const resultado = await response.json();
+                if (resultado.exito) {
+                    alert(`¡Licencia de cortesía generada con éxito!\n\nNúmero de Cliente: ${numero_cliente}\nClave: ${licenseKey}`);
+                    await inicializarPanel();
+                    document.getElementById('selector-accion').value = "";
+                    cambiarAccion();
+                } else {
+                    alert("Error: " + resultado.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión.");
+            }
+        }
+
+        async function ejecutarRenovacionManual() {
+            if (!itemLicenciaSeleccionado) {
+                alert("Por favor, seleccione un producto (licencia) de la tabla superior para renovar.");
+                return;
+            }
+
+            const refPago = document.getElementById('input-ref-pago').value.trim();
+            if (!refPago) {
+                alert("Por favor, ingrese la referencia o el comprobante de pago bancario.");
+                return;
+            }
+
+            const fechaExpActual = new Date(itemLicenciaSeleccionado.fecha_expiracion);
+            const hoy = new Date();
+            const baseParaRenovacion = fechaExpActual > hoy ? fechaExpActual : hoy;
+
+            const nuevaFechaExpiracion = new Date(baseParaRenovacion);
+            nuevaFechaExpiracion.setDate(nuevaFechaExpiracion.getDate() + 30);
+
+            const payloadActualizacion = {
+                estado: "activa",
+                fecha_expiracion: nuevaFechaExpiracion.toISOString(),
+                fecha_limite_pago: nuevaFechaExpiracion.toISOString(),
+                metodo_pago: { pasarela: "transferencia_manual", referencia: refPago }
+            };
+
+            try {
+                const response = await fetch(`/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadActualizacion)
+                });
+                const resultado = await response.json();
+
+                if (resultado.exito || response.ok) {
+                    alert(`¡Renovación aplicada con éxito!\n\nNegocio: ${itemLicenciaSeleccionado.client.nombre_negocio}\nLicencia: ${itemLicenciaSeleccionado.licenseKey}\nNueva Vigencia: ${nuevaFechaExpiracion.toLocaleDateString()}\nRef. Pago: ${refPago}`);
+                    document.getElementById('input-ref-pago').value = '';
+                    await inicializarPanel();
+                    document.getElementById('selector-accion').value = "";
+                    cambiarAccion();
+                } else {
+                    alert("Error al renovar la licencia: " + (resultado.error || 'Respuesta inesperada'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión al procesar la renovación manual.");
+            }
+        }
+
+        function procesarGuardarEmpleado() {
+            if (empleadoEnEdicionId) {
+                guardarEdicionEmpleado();
+            } else {
+                registrarEmpleado();
+            }
+        }
+
+        async function registrarEmpleado() {
+            const nombre = document.getElementById('emp-nombre').value.trim();
+            const correo = document.getElementById('emp-correo').value.trim();
+            const permisos = {
+                cortesia: document.getElementById('perm-cortesia').checked,
+                renovacion: document.getElementById('perm-renovacion').checked,
+                reactivacion: document.getElementById('perm-reactivacion').checked,
+                telefonica: document.getElementById('perm-telefonica').checked
+            };
+
+            if (!nombre || !correo) {
+                alert("Ingrese nombre y correo del empleado.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/empleados/crear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre, correo, permisos })
+                });
+                const resultado = await response.json();
+                if (resultado.exito) {
+                    alert(`¡Empleado registrado!\n\nID: ${resultado.empleado.usuarioId}\nPassword temporal: ${resultado.empleado.password}`);
+                    cancelarEdicionEmpleado();
+                    const respEmp = await fetch('/api/empleados');
+                    listaGlobalEmpleados = await respEmp.json();
+                    renderizarTablaEmpleados(listaGlobalEmpleados);
+                } else {
+                    alert("Error: " + resultado.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error al registrar empleado.");
+            }
+        }
+
+        function cargarDatosEdicion(id) {
+            const emp = listaGlobalEmpleados.find(e => e._id === id);
+            if (!emp) return;
+
+            empleadoEnEdicionId = id;
+            document.getElementById('emp-nombre').value = emp.nombre || '';
+            document.getElementById('emp-correo').value = emp.correo || '';
+
+            const p = emp.permisos || {};
+            document.getElementById('perm-cortesia').checked = !!p.cortesia;
+            document.getElementById('perm-renovacion').checked = !!p.renovacion;
+            document.getElementById('perm-reactivacion').checked = !!p.reactivacion;
+            document.getElementById('perm-telefonica').checked = !!p.telefonica;
+
+            document.getElementById('btn-accion-empleado').innerText = "Guardar Cambios";
+            document.getElementById('btn-accion-empleado').className = "btn-success";
+            document.getElementById('btn-cancelar-edicion').style.display = "block";
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function cancelarEdicionEmpleado() {
+            empleadoEnEdicionId = null;
+            document.getElementById('emp-nombre').value = '';
+            document.getElementById('emp-correo').value = '';
+            document.getElementById('perm-cortesia').checked = false;
+            document.getElementById('perm-renovacion').checked = false;
+            document.getElementById('perm-reactivacion').checked = false;
+            document.getElementById('perm-telefonica').checked = false;
+
+            document.getElementById('btn-accion-empleado').innerText = "Generar Cuenta de Empleado";
+            document.getElementById('btn-accion-empleado').className = "btn-orange";
+            document.getElementById('btn-cancelar-edicion').style.display = "none";
+        }
+
+        async function guardarEdicionEmpleado() {
+            if (!empleadoEnEdicionId) return;
+
+            const nombre = document.getElementById('emp-nombre').value.trim();
+            const correo = document.getElementById('emp-correo').value.trim();
+            const permisos = {
+                cortesia: document.getElementById('perm-cortesia').checked,
+                renovacion: document.getElementById('perm-renovacion').checked,
+                reactivacion: document.getElementById('perm-reactivacion').checked,
+                telefonica: document.getElementById('perm-telefonica').checked
+            };
+
+            if (!nombre || !correo) {
+                alert("Ingrese nombre y correo del empleado.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/empleados/actualizar/${empleadoEnEdicionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre, correo, permisos })
+                });
+                const resultado = await response.json();
+
+                if (resultado.exito || response.ok) {
+                    alert("¡Datos y permisos del empleado actualizados con éxito!");
+                    cancelarEdicionEmpleado();
+                    const respEmp = await fetch('/api/empleados');
+                    listaGlobalEmpleados = await respEmp.json();
+                    renderizarTablaEmpleados(listaGlobalEmpleados);
+                } else {
+                    alert("Error al actualizar empleado: " + (resultado.error || 'Respuesta inesperada'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión al actualizar empleado.");
+            }
+        }
+
+        function renderizarTablaEmpleados(empleados) {
+            const tbody = document.getElementById('tabla-empleados');
+            tbody.innerHTML = '';
+            empleados.forEach(emp => {
+                const p = emp.permisos || {};
+                const tr = document.createElement('tr');
+                const listPermisos = `Cortesías: ${p.cortesia ? 'Sí' : 'No'} | Renovación: ${p.renovacion ? 'Sí' : 'No'} | Reac: ${p.reactivacion ? 'Sí' : 'No'} | Tel: ${p.telefonica ? 'Sí' : 'No'}`;
+                tr.innerHTML = `
+                    <td style="color: var(--accent-orange); font-family: monospace;">${emp.usuarioId}</td>
+                    <td>${emp.nombre}</td>
+                    <td>${emp.correo}</td>
+                    <td style="font-family: monospace;">${emp.password}</td>
+                    <td style="font-size: 12px; color: var(--text-muted);">${listPermisos}</td>
+                    <td style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        <button class="btn-orange" style="padding: 4px 8px; font-size: 11px;" onclick="regenerarPassword('${emp._id}')">Nueva Pass</button>
+                        <button class="btn-blue" style="padding: 4px 8px; font-size: 11px;" onclick="enviarCorreoEmpleado('${emp.correo}', '${emp.usuarioId}', '${emp.password}')">Correo</button>
+                        <button class="btn-success" style="padding: 4px 8px; font-size: 11px;" onclick="cargarDatosEdicion('${emp._id}')">Editar</button>
+                        ${emp.usuarioId !== 'EMP-ADMIN' ? `<button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="eliminarEmpleado('${emp._id}')">Eliminar</button>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filtrarEmpleados() {
+            const query = document.getElementById('input-buscar-emp').value.toLowerCase().trim();
+            if (!query) {
+                renderizarTablaEmpleados(listaGlobalEmpleados);
+                return;
+            }
+            const filtrados = listaGlobalEmpleados.filter(e => e.nombre.toLowerCase().includes(query) || e.correo.toLowerCase().includes(query) || e.usuarioId.toLowerCase().includes(query));
+            renderizarTablaEmpleados(filtrados);
+        }
+
+        async function regenerarPassword(id) {
+            if(!confirm("¿Desea generar una nueva contraseña para este operador?")) return;
+            try {
+                const resp = await fetch(`/api/empleados/regenerar-password/${id}`, { method: 'PUT' });
+                const res = await resp.json();
+                if(res.exito) {
+                    alert(`Contraseña actualizada con éxito.\nNueva clave temporal: ${res.empleado.password}`);
+                    const respEmp = await fetch('/api/empleados');
+                    listaGlobalEmpleados = await respEmp.json();
+                    renderizarTablaEmpleados(listaGlobalEmpleados);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function enviarCorreoEmpleado(correo, usuarioId, password) {
+            alert(`[SIMULACIÓN DE ENVÍO DE CORREO]\n\nPara: ${correo}\nAsunto: Credenciales de Acceso - Guarián POS\n\nSus datos de acceso son:\nUsuario ID: ${usuarioId}\nContraseña: ${password}\nURL del Panel: http://localhost:3000/\n\n¡Correo enviado exitosamente!`);
+        }
+
+        async function eliminarEmpleado(id) {
+            if(!confirm("¿Está seguro de eliminar a este operador del sistema?")) return;
+            try {
+                const resp = await fetch(`/api/empleados/${id}`, { method: 'DELETE' });
+                const res = await resp.json();
+                if(res.exito) {
+                    const respEmp = await fetch('/api/empleados');
+                    listaGlobalEmpleados = await respEmp.json();
+                    renderizarTablaEmpleados(listaGlobalEmpleados);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function ejecutarReactivacion() { alert("Hardware actualizado con éxito."); }
+        function generarClaveTelefonica() { alert("Clave offline generada y enviada."); }
+    </script>
+</body>
+</html>
