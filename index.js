@@ -22,6 +22,9 @@ app.use('/api/licencias', licenciasRutas);
 const rutasEmpleados = require('./routes/empleados');
 app.use('/api/empleados', rutasEmpleados);
 
+const productosRutas = require('./routes/products');
+app.use('/api/productos', productosRutas);
+
 // Ruta de prueba inicial
 app.get('/', (req, res) => {
     res.json({ mensaje: "¡Bienvenido al Panel y Servidor de Licencias de Guarián POS!" });
