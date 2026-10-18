@@ -93,6 +93,15 @@ const LicenciaSchema = new mongoose.Schema({
         required: true 
     },
 
+    // Control de usuarios (administradores y cajeros) operando esta licencia/sucursal en la nube
+    usuarios: [
+        {
+            nombre: { type: String, required: true },
+            rol: { type: String, enum: ['administrador', 'empleado'], default: 'empleado' },
+            pin: { type: String, required: true } // PIN numérico para el acceso rápido
+        }
+    ],
+
     // Fechas de control de actualización de registros
     updatedAt: { 
         type: Date, 

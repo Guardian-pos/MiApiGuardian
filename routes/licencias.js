@@ -103,4 +103,62 @@ router.post('/activar', async (req, res) => {
     }
 });
 
+// RUTA: Registrar un usuario (empleado/administrador) en una licencia específica
+router.post('/usuarios/registrar', async (req, res) => {
+    const { licenseKey, nombre, rol, pin } = req.body;
+
+    try {
+        const licencia = await Licencia.findOne({ licenseKey });
+
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
+        }
+
+        // Agregar el nuevo usuario al arreglo
+        licencia.usuarios.push({ nombre, rol, pin });
+        licencia.updatedAt = Date.now();
+        await licencia.save();
+
+        res.status(201).json({
+            exito: true,
+            mensaje: "Usuario registrado correctamente en la nube.",
+            usuarios: licencia.usuarios
+        });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// RUTA: Validar login de usuario por PIN dentro de la licencia
+router.post('/usuarios/login', async (req, res) => {
+    const { licenseKey, pin } = req.body;
+
+    try {
+        const licencia = await Licencia.findOne({ licenseKey });
+
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
+        }
+
+        // Buscar si algún usuario coincide con el PIN
+        const usuarioEncontrado = licencia.usuarios.find(u => u.pin === pin);
+
+        if (!usuarioEncontrado) {
+            return res.status(401).json({ exito: false, error: "PIN incorrecto o usuario no registrado." });
+        }
+
+        res.status(200).json({
+            exito: true,
+            mensaje: "Acceso concedido.",
+            usuario: {
+                nombre: usuarioEncontrado.nombre,
+                rol: usuarioEncontrado.rol,
+                numero_cliente: licencia.client.numero_cliente // Importante para el tenantId
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
 module.exports = router;
