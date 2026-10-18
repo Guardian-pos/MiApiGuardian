@@ -14,7 +14,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ==========================================
-// RUTAS DE LA API (NUEVO MÓDULO UNIFICADO)
+// RUTAS DE LA API (MÓDULO UNIFICADO)
 // ==========================================
 const licenciasRutas = require('./routes/licencias');
 app.use('/api/licencias', licenciasRutas);
@@ -25,7 +25,7 @@ app.use('/api/empleados', rutasEmpleados);
 const productosRutas = require('./routes/products');
 app.use('/api/productos', productosRutas);
 
-// Importar y usar las rutas de prueba (trial) de forma ordenada
+// Importar y usar las rutas de prueba (trial)
 const trialRoutes = require('./routes/trial');
 app.use('/api', trialRoutes);
 
@@ -33,10 +33,11 @@ app.use('/api', trialRoutes);
 app.get('/', (req, res) => {
     res.json({ mensaje: "¡Bienvenido al Panel y Servidor de Licencias de Guarián POS!" });
 });
+
 // Inicializar tareas automáticas (Cron Job)
 require('./jobs/expiracionCron');
 
-// Esta línea leerá automáticamente la URI del archivo .env
+// Conexión a MongoDB Atlas
 const MONGO_URI = process.env.MONGO_URI;
 
 mongoose.connect(MONGO_URI)
