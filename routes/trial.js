@@ -27,7 +27,7 @@ router.post('/solicitar-prueba', async (req, res) => {
       });
     }
 
-    // Generar una clave de licencia de prueba única (ej. GPOS-TRIAL-8F4A)
+    // Generar una clave de licencia de prueba única
     const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
     const licenseKey = `GPOS-TRIAL-${randomCode}`;
 
@@ -35,11 +35,15 @@ router.post('/solicitar-prueba', async (req, res) => {
     const fechaExpiracion = new Date();
     fechaExpiracion.setDate(fechaExpiracion.getDate() + 15);
 
-    // Guardar el registro en MongoDB Atlas utilizando tu modelo unificado
+    // Generar un número de cliente único para el tenant
+    const numeroClienteUnico = 'CLI-' + Math.floor(1000 + Math.random() * 9000);
+
+    // Guardar el registro en MongoDB Atlas asegurando el numero_cliente
     const nuevaLicencia = new Licencia({
       tipo_producto: 'guardian_pos_lite',
       licenseKey: licenseKey,
       client: {
+        numero_cliente: numeroClienteUnico, // <-- ¡Este era el campo faltante!
         nombre_negocio: negocio,
         nombre_contacto: contacto,
         telefono: telefono,
@@ -50,14 +54,14 @@ router.post('/solicitar-prueba', async (req, res) => {
       metodo_pago: {
         pasarela: 'prueba_gratuita'
       },
-      usuarios: [] // Inicializamos vacío para que la app sepa que falta registrar el admin
+      usuarios: []
     });
 
     await nuevaLicencia.save();
 
     // Enviar correo corporativo utilizando la API HTTP de Resend
     const { data, error } = await resend.emails.send({
-      from: 'Guardián POS Lite <soporte@guardianpos.mx>', // Asegúrate de verificar tu dominio en Resend o usar el correo de prueba autorizado
+      from: 'Guardián POS Lite <soporte@guardianpos.mx>',
       to: [correo],
       subject: 'Tu Código de Activación - Prueba Gratuita de 15 Días',
       html: `
@@ -70,8 +74,6 @@ router.post('/solicitar-prueba', async (req, res) => {
           </div>
           <p>Copia este código e ingrésalo en tu aplicación para comenzar a utilizar tu sistema de inmediato.</p>
           <p>Este código vencerá el: <strong>${fechaExpiracion.toLocaleDateString()}</strong>.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #666;">Si tienes dudas, puedes responder directamente a este correo o visitar <a href="https://guardianpos.mx">guardianpos.mx</a>.</p>
         </div>
       `,
     });
