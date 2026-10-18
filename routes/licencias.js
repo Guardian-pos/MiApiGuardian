@@ -87,11 +87,12 @@ router.post('/activar', async (req, res) => {
             exito: true,
             mensaje: "Licencia activada y vinculada correctamente.",
             datos: {
-                numero_cliente: licencia.client.numero_cliente, // Este es tu tenantId
+                numero_cliente: licencia.client.numero_cliente,
                 nombre_negocio: licencia.client.nombre_negocio,
                 tipo_producto: licencia.tipo_producto,
                 fecha_expiracion: licencia.fecha_expiracion,
-                estado: licencia.estado
+                estado: licencia.estado,
+                tieneUsuarios: licencia.usuarios && licencia.usuarios.length > 0 // <-- Añadido clave para el onboarding
             }
         });
 
