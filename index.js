@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 // Middlewares
 app.use(cors());
 app.use(express.json());
-app.use('/api', trialRoutes);
 
 // Servir archivos estáticos de la carpeta public
 app.use(express.static('public'));
@@ -26,7 +25,9 @@ app.use('/api/empleados', rutasEmpleados);
 const productosRutas = require('./routes/products');
 app.use('/api/productos', productosRutas);
 
+// Importar y usar las rutas de prueba (trial) de forma ordenada
 const trialRoutes = require('./routes/trial');
+app.use('/api', trialRoutes);
 
 // Ruta de prueba inicial
 app.get('/', (req, res) => {
