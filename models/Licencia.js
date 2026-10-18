@@ -1,28 +1,22 @@
-/**
- * MODELO UNIFICADO DE LICENCIAS Y CLIENTES - GUARDIÁN POS
- * Este esquema en Mongoose centraliza la administración para Desktop, Lite, 
- * y módulos complementarios, integrando control de pagos, facturación y seguridad.
- */
-
 const mongoose = require('mongoose');
 
 const LicenciaSchema = new mongoose.Schema({
     
-    // Identificador único de la orden generado automáticamente en la compra web
+    // Identificador único de la orden (Opcional para pruebas gratuitas generadas por sistema)
     purchaseOrder: { 
         type: String, 
-        required: true, 
-        unique: true 
+        required: false, 
+        unique: true,
+        sparse: true // Permite múltiples nulos si no hay orden de compra web aún
     },
 
     /**
      * Tipo de producto adquirido dentro del ecosistema Guarián POS.
-     * Permite distinguir entre licencias de PC, tablets Android o módulos complementarios.
-     * Ejemplos: "guardian_pos_desktop", "guardian_pos_lite", "verificador_precios", "editor_precios"
      */
     tipo_producto: { 
         type: String, 
-        required: true 
+        required: true,
+        default: 'guardian_pos_lite' 
     },
 
     // Clave de licencia única generada para el software (ej. GPOS-TEST-2026-1234)
@@ -34,7 +28,7 @@ const LicenciaSchema = new mongoose.Schema({
 
     // Datos generales y fiscales del cliente
     client: {
-        numero_cliente: { type: String, unique: true },
+        numero_cliente: { type: String, unique: true, sparse: true },
         nombre_negocio: { type: String, required: true },
         nombre_contacto: { type: String, required: true },
         telefono: { type: String, required: true },
@@ -52,57 +46,52 @@ const LicenciaSchema = new mongoose.Schema({
 
     // Vinculación de seguridad por hardware o dispositivo para evitar piratería
     hardwareBinding: {
-        tipo_dispositivo: { type: String, enum: ['pc', 'android_tablet'], default: 'pc' },
-        identificador_unico: { type: String, default: null } // MAC Address, HWID de PC o Android Device ID
+        tipo_dispositivo: { type: String, enum: ['pc', 'android_tablet', 'web_simulator'], default: 'android_tablet' },
+        identificador_unico: { type: String, default: null }
     },
 
     // Estado actual de la licencia en el sistema
     estado: { 
         type: String, 
-        enum: ['pendiente_pago', 'activa', 'suspendida', 'cancelada_por_tiempo'], 
-        default: 'pendiente_pago' 
+        enum: ['pendiente_pago', 'activa', 'suspendida', 'cancelada_por_tiempo', 'prueba_activa'], 
+        default: 'activa' 
     },
 
     /**
      * Vigencia del producto:
-     * - Escritorio (Desktop): Por defecto se calcula a 10 años (considerada comercialmente vitalicia).
-     * - Lite / Nube: Sujeta a renovación mensual o anual según el plan contratado.
      */
     fecha_expiracion: { 
         type: Date, 
         required: true 
     },
 
-    // Aislamiento de datos: Cada cliente o sucursal posee su propia base de datos independiente en Atlas
+    // Aislamiento de datos (Opcional en fases iniciales de prueba)
     conexion_bd_asignada: {
-        nombre_base_datos: { type: String, required: true }
+        nombre_base_datos: { type: String, required: false }
     },
 
-    // Control de pagos y pasarelas (Stripe vs Transferencia Manual)
+    // Control de pagos y pasarelas
     metodo_pago: {
-        pasarela: { type: String, enum: ['stripe', 'transferencia_manual'], required: true },
-        // IMPORTANTE (Seguridad Financiera): Nunca guardamos números de tarjeta en crudo. 
-        // Stripe se encarga de tokenizarlas y solo guardamos el ID de cliente de Stripe para cobros recurrentes mensuales.
+        pasarela: { type: String, enum: ['stripe', 'transferencia_manual', 'prueba_gratuita'], default: 'prueba_gratuita' },
         stripe_customer_id: { type: String, default: null },
-        comprobante_url: { type: String, default: null } // Usado para validar el pago por transferencia manual
+        comprobante_url: { type: String, default: null }
     },
 
-    // Control de caducidad automática para órdenes por transferencia no pagadas (Límite: 3 días)
+    // Control de caducidad automática para órdenes no pagadas (Opcional para pruebas)
     fecha_limite_pago: { 
         type: Date, 
-        required: true 
+        required: false 
     },
 
-    // Control de usuarios (administradores y cajeros) operando esta licencia/sucursal en la nube
+    // Control de usuarios (administradores y cajeros)
     usuarios: [
         {
-            nombre: { type: String, required: true },
-            rol: { type: String, enum: ['administrador', 'empleado'], default: 'empleado' },
-            pin: { type: String, required: true } // PIN numérico para el acceso rápido
+            nombre: { type: String, required: false },
+            rol: { type: String, enum: ['administrador', 'empleado'], default: 'administrador' },
+            pin: { type: String, required: false }
         }
     ],
 
-    // Fechas de control de actualización de registros
     updatedAt: { 
         type: Date, 
         default: Date.now 
