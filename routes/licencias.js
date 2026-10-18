@@ -4,10 +4,10 @@ const Licencia = require('../models/Licencia');
 
 // RUTA: Registrar una nueva licencia / orden de compra (simulando la pasarela o compra web)
 router.post('/crear', async (req, res) => {
-
-   if (!req.body.client.numero_cliente) {
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    req.body.client.numero_cliente = `CLI-${randomNum}`;
+    if (!req.body.client || !req.body.client.numero_cliente) {
+        if (!req.body.client) req.body.client = {};
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        req.body.client.numero_cliente = `CLI-${randomNum}`;
     } 
     try {
         const nuevaLicencia = new Licencia(req.body);
@@ -60,21 +60,37 @@ router.post('/activar', async (req, res) => {
             });
         }
 
-        // 2. Validar si ya expiró
-        if (new Date() > new Date(licencia.fecha_expiracion)) {
-            return res.status(400).json({
+        // 2. Validar bloqueo manual por impago o suspensión (si el campo estado o activo lo define)
+        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva') {
+            return res.status(403).json({
                 exito: false,
-                error: "La licencia ha expirado. Por favor, renueve su plan."
+                codigo_error: 'LICENCIA_INACTIVA',
+                error: "Licencia suspendida por falta de pago. Por favor contacte a soporte."
             });
         }
 
-        // 3. Vincular el dispositivo si aún no está asignado o actualizarlo
+        // 3. Validar si ya expiró
+        if (licencia.fecha_expiracion && new Date() > new Date(licencia.fecha_expiracion)) {
+            return res.status(403).json({
+                exito: false,
+                codigo_error: 'LICENCIA_EXPIRADA',
+                error: "La licencia o periodo de prueba ha expirado. Por favor, renueve su plan."
+            });
+        }
+
+        // 4. Vincular el dispositivo si aún no está asignado o validar que coincida
         if (!licencia.hardwareBinding.identificador_unico) {
             licencia.hardwareBinding.identificador_unico = identificador_unico || 'tablet_generica';
             licencia.hardwareBinding.tipo_dispositivo = 'android_tablet';
+        } else if (identificador_unico && licencia.hardwareBinding.identificador_unico !== identificador_unico) {
+            return res.status(403).json({
+                exito: false,
+                codigo_error: 'DISPOSITIVO_NO_AUTORIZADO',
+                error: "Esta licencia ya se encuentra vinculada a otro dispositivo físico."
+            });
         }
 
-        // 4. Asegurar que pase a estado activa si estaba pendiente de prueba/pago inicial
+        // 5. Asegurar que pase a estado activa si estaba pendiente de prueba/pago inicial
         if (licencia.estado === 'pendiente_pago') {
             licencia.estado = 'activa';
         }
@@ -82,7 +98,7 @@ router.post('/activar', async (req, res) => {
         licencia.updatedAt = Date.now();
         await licencia.save();
 
-        // 5. Responder con los datos críticos que la tablet necesita guardar localmente
+        // 6. Responder con los datos críticos que la tablet necesita guardar localmente
         res.status(200).json({
             exito: true,
             mensaje: "Licencia activada y vinculada correctamente.",
@@ -92,7 +108,7 @@ router.post('/activar', async (req, res) => {
                 tipo_producto: licencia.tipo_producto,
                 fecha_expiracion: licencia.fecha_expiracion,
                 estado: licencia.estado,
-                tieneUsuarios: licencia.usuarios && licencia.usuarios.length > 0 // <-- Añadido clave para el onboarding
+                tieneUsuarios: licencia.usuarios && licencia.usuarios.length > 0
             }
         });
 
@@ -101,6 +117,65 @@ router.post('/activar', async (req, res) => {
             exito: false,
             error: error.message
         });
+    }
+});
+
+// RUTA NUEVA: Validar estado en tiempo real (para PIN y Cierres de Caja - Impago / Expiración)
+router.post('/validar-estado', async (req, res) => {
+    const { licenseKey, identificador_unico } = req.body;
+
+    try {
+        if (!licenseKey) {
+            return res.status(400).json({ exito: false, error: "Falta la clave de licencia." });
+        }
+
+        const licencia = await Licencia.findOne({ licenseKey });
+
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "La licencia no existe en el sistema." });
+        }
+
+        // 1. Revisar bloqueo por impago o suspensión
+        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva') {
+            return res.status(403).json({
+                exito: false,
+                codigo_error: 'LICENCIA_INACTIVA',
+                error: "Licencia suspendida por falta de pago. Por favor contacte a soporte."
+            });
+        }
+
+        // 2. Revisar expiración (Prueba o Mensualidad)
+        if (licencia.fecha_expiracion && new Date() > new Date(licencia.fecha_expiracion)) {
+            return res.status(403).json({
+                exito: false,
+                codigo_error: 'LICENCIA_EXPIRADA',
+                error: "Su periodo de prueba o licencia ha expirado. Realice su pago para continuar."
+            });
+        }
+
+        // 3. Revisar consistencia de hardware si se envía
+        if (identificador_unico && licencia.hardwareBinding && licencia.hardwareBinding.identificador_unico) {
+            if (licencia.hardwareBinding.identificador_unico !== identificador_unico) {
+                return res.status(403).json({
+                    exito: false,
+                    codigo_error: 'DISPOSITIVO_NO_AUTORIZADO',
+                    error: "Esta licencia está vinculada a otro dispositivo físico."
+                });
+            }
+        }
+
+        res.status(200).json({
+            exito: true,
+            mensaje: "Licencia vigente y activa.",
+            datos: {
+                numero_cliente: licencia.client.numero_cliente,
+                fecha_expiracion: licencia.fecha_expiracion,
+                estado: licencia.estado
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
     }
 });
 
@@ -115,7 +190,6 @@ router.post('/usuarios/registrar', async (req, res) => {
             return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
         }
 
-        // Agregar el nuevo usuario al arreglo
         licencia.usuarios.push({ nombre, rol, pin });
         licencia.updatedAt = Date.now();
         await licencia.save();
@@ -141,7 +215,6 @@ router.post('/usuarios/login', async (req, res) => {
             return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
         }
 
-        // Buscar si algún usuario coincide con el PIN
         const usuarioEncontrado = licencia.usuarios.find(u => u.pin === pin);
 
         if (!usuarioEncontrado) {
@@ -154,7 +227,7 @@ router.post('/usuarios/login', async (req, res) => {
             usuario: {
                 nombre: usuarioEncontrado.nombre,
                 rol: usuarioEncontrado.rol,
-                numero_cliente: licencia.client.numero_cliente // Importante para el tenantId
+                numero_cliente: licencia.client.numero_cliente
             }
         });
     } catch (error) {
