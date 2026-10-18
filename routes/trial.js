@@ -1,20 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const Licencia = require('../models/Licencia');
 
-// 1. Configurar el transportador SMTP con las credenciales de Namecheap
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'mail.privateemail.com',
-  port: process.env.SMTP_PORT || 465,
-  secure: true, // true para puerto 465
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Inicializar Resend con la API Key configurada en las variables de entorno
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 2. Endpoint para solicitar la prueba de 15 días
+// Endpoint para solicitar la prueba de 15 días
 router.post('/solicitar-prueba', async (req, res) => {
   try {
     const { negocio, contacto, telefono, correo } = req.body;
@@ -57,15 +49,16 @@ router.post('/solicitar-prueba', async (req, res) => {
       fecha_expiracion: fechaExpiracion,
       metodo_pago: {
         pasarela: 'prueba_gratuita'
-      }
+      },
+      usuarios: [] // Inicializamos vacío para que la app sepa que falta registrar el admin
     });
 
     await nuevaLicencia.save();
 
-    // 3. Estructurar y enviar el correo corporativo con el código
-    const mailOptions = {
-      from: '"Guardián POS Lite" <soporte@guardianpos.mx>',
-      to: correo,
+    // Enviar correo corporativo utilizando la API HTTP de Resend
+    const { data, error } = await resend.emails.send({
+      from: 'Guardián POS Lite <soporte@guardianpos.mx>', // Asegúrate de verificar tu dominio en Resend o usar el correo de prueba autorizado
+      to: [correo],
       subject: 'Tu Código de Activación - Prueba Gratuita de 15 Días',
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
@@ -81,9 +74,15 @@ router.post('/solicitar-prueba', async (req, res) => {
           <p style="font-size: 12px; color: #666;">Si tienes dudas, puedes responder directamente a este correo o visitar <a href="https://guardianpos.mx">guardianpos.mx</a>.</p>
         </div>
       `,
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
+    if (error) {
+      console.error('Error devuelto por Resend API:', error);
+      return res.status(500).json({
+        exito: false,
+        mensaje: 'Error al enviar el correo mediante el servicio de mensajería.'
+      });
+    }
 
     res.json({
       exito: true,
