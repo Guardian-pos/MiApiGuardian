@@ -9,12 +9,14 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // Endpoint para solicitar la prueba de 15 días
 router.post('/solicitar-prueba', async (req, res) => {
   try {
-    const { negocio, contacto, telefono, correo } = req.body;
+    // Extraemos la dirección de forma opcional (si no viene, será una cadena vacía)
+    const { negocio, contacto, telefono, correo, direccion } = req.body;
 
+    // NOTA: 'direccion' NO es obligatoria aquí para permitir registros web rápidos
     if (!negocio || !contacto || !telefono || !correo) {
       return res.status(400).json({ 
         exito: false, 
-        mensaje: 'Todos los campos son obligatorios.' 
+        mensaje: 'Todos los campos obligatorios deben ser completados.' 
       });
     }
 
@@ -38,16 +40,17 @@ router.post('/solicitar-prueba', async (req, res) => {
     // Generar un número de cliente único para el tenant
     const numeroClienteUnico = 'CLI-' + Math.floor(1000 + Math.random() * 9000);
 
-    // Guardar el registro en MongoDB Atlas asegurando el numero_cliente
+    // Guardar el registro en MongoDB Atlas asegurando el numero_cliente y la direccion opcional
     const nuevaLicencia = new Licencia({
       tipo_producto: 'guardian_pos_lite',
       licenseKey: licenseKey,
       client: {
-        numero_cliente: numeroClienteUnico, // <-- ¡Este era el campo faltante!
+        numero_cliente: numeroClienteUnico,
         nombre_negocio: negocio,
         nombre_contacto: contacto,
         telefono: telefono,
-        correo: correo
+        correo: correo,
+        direccion: direccion ? direccion.trim() : '' // <-- Se guarda si viene, o vacío si no se especificó
       },
       estado: 'activa',
       fecha_expiracion: fechaExpiracion,
