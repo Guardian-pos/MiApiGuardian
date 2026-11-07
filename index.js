@@ -29,6 +29,10 @@ app.use('/api/productos', productosRutas);
 const trialRoutes = require('./routes/trial');
 app.use('/api', trialRoutes);
 
+// NUEVO: Importar y usar las rutas de movimientos (Ventas, Devoluciones, Caja, Cortes)
+const movimientosRutas = require('./routes/movimientos');
+app.use('/api/ventas', movimientosRutas);
+
 // Ruta de prueba inicial
 app.get('/', (req, res) => {
     res.json({ mensaje: "¡Bienvenido al Panel y Servidor de Licencias de Guarián POS!" });

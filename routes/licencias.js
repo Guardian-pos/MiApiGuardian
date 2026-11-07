@@ -60,12 +60,12 @@ router.post('/activar', async (req, res) => {
             });
         }
 
-        // 2. Validar bloqueo manual por impago o suspensión (si el campo estado o activo lo define)
-        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva') {
+        // 2. Validar bloqueo manual por impago o suspensión
+        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva' || licencia.estado === 'vencida') {
             return res.status(403).json({
                 exito: false,
                 codigo_error: 'LICENCIA_INACTIVA',
-                error: "Licencia suspendida por falta de pago. Por favor contacte a soporte."
+                error: "Licencia suspendida o vencida. Por favor contacte a soporte."
             });
         }
 
@@ -91,7 +91,7 @@ router.post('/activar', async (req, res) => {
         }
 
         // 5. Asegurar que pase a estado activa si estaba pendiente de prueba/pago inicial
-        if (licencia.estado === 'pendiente_pago') {
+        if (licencia.estado === 'pendiente_pago' || licencia.estado === 'prueba_activa') {
             licencia.estado = 'activa';
         }
 
@@ -136,11 +136,11 @@ router.post('/validar-estado', async (req, res) => {
         }
 
         // 1. Revisar bloqueo por impago o suspensión
-        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva') {
+        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva' || licencia.estado === 'vencida') {
             return res.status(403).json({
                 exito: false,
                 codigo_error: 'LICENCIA_INACTIVA',
-                error: "Licencia suspendida por falta de pago. Por favor contacte a soporte."
+                error: "Licencia suspendida o vencida. Por favor contacte a soporte."
             });
         }
 
@@ -230,6 +230,94 @@ router.post('/usuarios/login', async (req, res) => {
                 numero_cliente: licencia.client.numero_cliente
             }
         });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+
+// =========================================================================
+// MÓDULOS NUEVOS: SOPORTE PARA EL CONFIGURACION PROVIDER DE FLUTTER
+// =========================================================================
+
+// RUTA: Obtener los datos generales de configuración del negocio por licenseKey
+router.get('/configuracion/:licenseKey', async (req, res) => {
+    try {
+        const { licenseKey } = req.params;
+        const licencia = await Licencia.findOne({ licenseKey });
+
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
+        }
+
+        res.status(200).json({
+            exito: true,
+            datos: {
+                nombre_negocio: licencia.client.nombre_negocio,
+                direccion: licencia.client.facturacion?.razon_social || '', // o campo dedicado si lo tienes
+                telefono: licencia.client.telefono,
+                correo: licencia.client.correo
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// RUTA: Actualizar la configuración general del negocio
+router.put('/configuracion/:licenseKey', async (req, res) => {
+    try {
+        const { licenseKey } = req.params;
+        const { nombre_negocio, direccion, telefono, correo } = req.body;
+
+        const licencia = await Licencia.findOne({ licenseKey });
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
+        }
+
+        if (nombre_negocio) licencia.client.nombre_negocio = nombre_negocio;
+        if (telefono) licencia.client.telefono = telefono;
+        if (correo) licencia.client.correo = correo;
+        
+        licencia.updatedAt = Date.now();
+        await licencia.save();
+
+        res.status(200).json({ exito: true, mensaje: "Configuración actualizada correctamente." });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// RUTA: Guardar o actualizar un usuario de sucursal (Cajero / Administrador con PIN)
+router.post('/usuarios/guardar', async (req, res) => {
+    try {
+        const { licenseKey, id, nombre, rol, pin } = req.body;
+
+        const licencia = await Licencia.findOne({ licenseKey });
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "Licencia no encontrada." });
+        }
+
+        if (id) {
+            // Buscar y actualizar usuario existente dentro del arreglo
+            const usuarioIndex = licencia.usuarios.findIndex(u => u._id.toString() === id);
+            if (usuarioIndex !== -1) {
+                if (nombre) licencia.usuarios[usuarioIndex].nombre = nombre;
+                if (rol) licencia.usuarios[usuarioIndex].rol = rol;
+                if (pin) licencia.usuarios[usuarioIndex].pin = pin;
+            } else {
+                // Si mandó un ID pero no coincide, lo agregamos como nuevo
+                licencia.usuarios.push({ nombre, rol, pin });
+            }
+        } else {
+            // Crear nuevo usuario en el arreglo de la licencia
+            licencia.usuarios.push({ nombre, rol, pin });
+        }
+
+        licencia.updatedAt = Date.now();
+        await licencia.save();
+
+        res.status(200).json({ exito: true, mensaje: "Usuario guardado o actualizado correctamente." });
     } catch (error) {
         res.status(500).json({ exito: false, error: error.message });
     }
