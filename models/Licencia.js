@@ -11,7 +11,7 @@ const LicenciaSchema = new mongoose.Schema({
     },
 
     /**
-     * Tipo de producto adquirido dentro del ecosistema Guarián POS.
+     * Tipo de producto adquirido dentro del ecosistema Guardián POS.
      */
     tipo_producto: { 
         type: String, 
@@ -50,11 +50,21 @@ const LicenciaSchema = new mongoose.Schema({
         identificador_unico: { type: String, default: null }
     },
 
-    // Estado actual de la licencia en el sistema
+    // Estado actual de la licencia en el sistema (Segmentado por ciclos de vida)
     estado: { 
         type: String, 
-        enum: ['pendiente_pago', 'activa', 'suspendida', 'cancelada_por_tiempo', 'prueba_activa'], 
-        default: 'activa' 
+        enum: [
+            'pendiente_pago', 
+            'suspendida', 
+            'cancelada_por_tiempo', 
+            'prueba_activa', 
+            'prueba_vencida', 
+            'licencia_activa', 
+            'licencia_vencida', 
+            'stripe_activa', 
+            'stripe_vencida'
+        ], 
+        default: 'prueba_activa' 
     },
 
     /**

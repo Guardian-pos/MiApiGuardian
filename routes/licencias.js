@@ -10,6 +10,17 @@ router.post('/crear', async (req, res) => {
         req.body.client.numero_cliente = `CLI-${randomNum}`;
     } 
     try {
+        // Asegurar estado inicial acorde al método de pago si no viene definido
+        if (!req.body.estado) {
+            if (req.body.metodo_pago?.pasarela === 'transferencia_manual') {
+                req.body.estado = 'licencia_activa';
+            } else if (req.body.metodo_pago?.pasarela === 'stripe') {
+                req.body.estado = 'stripe_activa';
+            } else {
+                req.body.estado = 'prueba_activa';
+            }
+        }
+
         const nuevaLicencia = new Licencia(req.body);
         const licenciaGuardada = await nuevaLicencia.save();
         res.status(201).json({
@@ -38,11 +49,11 @@ router.get('/', async (req, res) => {
     }
 });
 
-// RUTA NUEVA: Actualizar o extender la vigencia/estado de una licencia desde el panel web (por ID)
+// RUTA: Actualizar o extender la vigencia/estado de una licencia desde el panel web (por ID)
 router.put('/actualizar/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { fecha_expiracion, estado, client } = req.body;
+        const { fecha_expiracion, estado, client, metodo_pago, hardwareBinding } = req.body;
 
         const licencia = await Licencia.findById(id);
         if (!licencia) {
@@ -51,6 +62,18 @@ router.put('/actualizar/:id', async (req, res) => {
 
         if (fecha_expiracion) licencia.fecha_expiracion = fecha_expiracion;
         if (estado) licencia.estado = estado;
+        
+        if (metodo_pago) {
+            if (metodo_pago.pasarela) licencia.metodo_pago.pasarela = metodo_pago.pasarela;
+            if (metodo_pago.comprobante_url) licencia.metodo_pago.comprobante_url = metodo_pago.comprobante_url;
+            if (metodo_pago.stripe_customer_id) licencia.metodo_pago.stripe_customer_id = metodo_pago.stripe_customer_id;
+        }
+
+        if (hardwareBinding) {
+            if (hardwareBinding.tipo_dispositivo) licencia.hardwareBinding.tipo_dispositivo = hardwareBinding.tipo_dispositivo;
+            if (hardwareBinding.identificador_unico) licencia.hardwareBinding.identificador_unico = hardwareBinding.identificador_unico;
+        }
+
         if (client) {
             if (client.nombre_negocio) licencia.client.nombre_negocio = client.nombre_negocio;
             if (client.nombre_contacto) licencia.client.nombre_contacto = client.nombre_contacto;
@@ -67,7 +90,10 @@ router.put('/actualizar/:id', async (req, res) => {
             datos: licenciaActualizada
         });
     } catch (error) {
-        res.status(500).json({ exito: false, error: error.message });
+        res.status(500).json({
+            exito: false,
+            error: error.message
+        });
     }
 });
 
@@ -93,8 +119,9 @@ router.post('/activar', async (req, res) => {
             });
         }
 
-        // 2. Validar bloqueo manual por impago o suspensión
-        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva' || licencia.estado === 'vencida') {
+        // 2. Validar bloqueo manual por impago, suspensión o expiración en cualquier modalidad
+        const estadosInactivos = ['suspendida', 'inactiva', 'vencida', 'prueba_vencida', 'licencia_vencida', 'stripe_vencida', 'cancelada_por_tiempo'];
+        if (estadosInactivos.includes(licencia.estado)) {
             return res.status(403).json({
                 exito: false,
                 codigo_error: 'LICENCIA_INACTIVA',
@@ -102,7 +129,7 @@ router.post('/activar', async (req, res) => {
             });
         }
 
-        // 3. Validar si ya expiró
+        // 3. Validar si ya expiró por fecha
         if (licencia.fecha_expiracion && new Date() > new Date(licencia.fecha_expiracion)) {
             return res.status(403).json({
                 exito: false,
@@ -123,9 +150,15 @@ router.post('/activar', async (req, res) => {
             });
         }
 
-        // 5. Asegurar que pase a estado activa si estaba pendiente de prueba/pago inicial
-        if (licencia.estado === 'pendiente_pago' || licencia.estado === 'prueba_activa') {
-            licencia.estado = 'activa';
+        // 5. Asegurar estado activo correspondiente según la pasarela si estaba pendiente
+        if (licencia.estado === 'pendiente_pago') {
+            if (licencia.metodo_pago.pasarela === 'transferencia_manual') {
+                licencia.estado = 'licencia_activa';
+            } else if (licencia.metodo_pago.pasarela === 'stripe') {
+                licencia.estado = 'stripe_activa';
+            } else {
+                licencia.estado = 'prueba_activa';
+            }
         }
 
         licencia.updatedAt = Date.now();
@@ -169,7 +202,8 @@ router.post('/validar-estado', async (req, res) => {
         }
 
         // 1. Revisar bloqueo por impago o suspensión
-        if (licencia.estado === 'suspendida' || licencia.estado === 'inactiva' || licencia.estado === 'vencida') {
+        const estadosInactivos = ['suspendida', 'inactiva', 'vencida', 'prueba_vencida', 'licencia_vencida', 'stripe_vencida', 'cancelada_por_tiempo'];
+        if (estadosInactivos.includes(licencia.estado)) {
             return res.status(403).json({
                 exito: false,
                 codigo_error: 'LICENCIA_INACTIVA',
@@ -177,7 +211,7 @@ router.post('/validar-estado', async (req, res) => {
             });
         }
 
-        // 2. Revisar expiración (Prueba o Mensualidad)
+        // 2. Revisar expiración
         if (licencia.fecha_expiracion && new Date() > new Date(licencia.fecha_expiracion)) {
             return res.status(403).json({
                 exito: false,
