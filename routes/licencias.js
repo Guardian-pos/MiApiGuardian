@@ -38,6 +38,39 @@ router.get('/', async (req, res) => {
     }
 });
 
+// RUTA NUEVA: Actualizar o extender la vigencia/estado de una licencia desde el panel web (por ID)
+router.put('/actualizar/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { fecha_expiracion, estado, client } = req.body;
+
+        const licencia = await Licencia.findById(id);
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: "Licencia no encontrada en el sistema." });
+        }
+
+        if (fecha_expiracion) licencia.fecha_expiracion = fecha_expiracion;
+        if (estado) licencia.estado = estado;
+        if (client) {
+            if (client.nombre_negocio) licencia.client.nombre_negocio = client.nombre_negocio;
+            if (client.nombre_contacto) licencia.client.nombre_contacto = client.nombre_contacto;
+            if (client.telefono) licencia.client.telefono = client.telefono;
+            if (client.correo) licencia.client.correo = client.correo;
+        }
+
+        licencia.updatedAt = Date.now();
+        const licenciaActualizada = await licencia.save();
+
+        res.status(200).json({
+            exito: true,
+            mensaje: "Licencia actualizada y extendida correctamente.",
+            datos: licenciaActualizada
+        });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
 // RUTA: Activar licencia desde la tablet (Onboarding / Primer inicio)
 router.post('/activar', async (req, res) => {
     const { licenseKey, identificador_unico } = req.body;
@@ -254,7 +287,7 @@ router.get('/configuracion/:licenseKey', async (req, res) => {
             exito: true,
             datos: {
                 nombre_negocio: licencia.client.nombre_negocio,
-                direccion: licencia.client.facturacion?.razon_social || '', // o campo dedicado si lo tienes
+                direccion: licencia.client.facturacion?.razon_social || '', 
                 telefono: licencia.client.telefono,
                 correo: licencia.client.correo
             }
@@ -299,18 +332,15 @@ router.post('/usuarios/guardar', async (req, res) => {
         }
 
         if (id) {
-            // Buscar y actualizar usuario existente dentro del arreglo
             const usuarioIndex = licencia.usuarios.findIndex(u => u._id.toString() === id);
             if (usuarioIndex !== -1) {
                 if (nombre) licencia.usuarios[usuarioIndex].nombre = nombre;
                 if (rol) licencia.usuarios[usuarioIndex].rol = rol;
                 if (pin) licencia.usuarios[usuarioIndex].pin = pin;
             } else {
-                // Si mandó un ID pero no coincide, lo agregamos como nuevo
                 licencia.usuarios.push({ nombre, rol, pin });
             }
         } else {
-            // Crear nuevo usuario en el arreglo de la licencia
             licencia.usuarios.push({ nombre, rol, pin });
         }
 

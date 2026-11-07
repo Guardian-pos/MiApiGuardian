@@ -295,11 +295,19 @@
                     </select>
                 </div>
 
-                <!-- FORMULARIO: CORTESÍA / EXTENSIÓN DE PRUEBA -->
+                <!-- FORMULARIO: CORTESÍA / EXTENSIÓN DE PRUEBA (6 CAMPOS COMPLETOS + DISPOSITIVO) -->
                 <div id="form-cortesia" class="hidden-form">
                     <h3 style="font-size: 14px; color: var(--accent-orange); margin-bottom: 10px;">Extensión de Vigencia / Prueba Piloto</h3>
                     <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Seleccione un cliente arriba para asociar la extensión a su licencia y hardware actual.</p>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Número de Cliente</label>
+                            <input type="text" id="cortesia-num-cliente" readonly placeholder="N/A">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Nombre del Negocio</label>
+                            <input type="text" id="cortesia-negocio" readonly placeholder="N/A">
+                        </div>
                         <div>
                             <label style="font-size: 12px; color: var(--text-muted);">Licencia Seleccionada</label>
                             <input type="text" id="cortesia-license" readonly placeholder="Seleccione un producto arriba...">
@@ -307,6 +315,10 @@
                         <div>
                             <label style="font-size: 12px; color: var(--text-muted);">Tipo de Producto</label>
                             <input type="text" id="cortesia-producto" readonly placeholder="Automático por selección">
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--text-muted);">Tipo de Dispositivo</label>
+                            <input type="text" id="cortesia-dispositivo" readonly placeholder="Registrado en Mongo">
                         </div>
                         <div>
                             <label style="font-size: 12px; color: var(--text-muted);">HWID / Identificador Único (Tablet)</label>
@@ -557,11 +569,11 @@
             }
 
             const filtrados = listaGlobalLicencias.filter(item => {
-                const numCliente = item.client.numero_cliente ? item.client.numero_cliente.toLowerCase() : '';
-                const negocio = item.client.nombre_negocio ? item.client.nombre_negocio.toLowerCase() : '';
-                const contacto = item.client.nombre_contacto ? item.client.nombre_contacto.toLowerCase() : '';
-                const correo = item.client.correo ? item.client.correo.toLowerCase() : '';
-                const telefono = item.client.telefono ? item.client.telefono.toLowerCase() : '';
+                const numCliente = item.client && item.client.numero_cliente ? item.client.numero_cliente.toLowerCase() : '';
+                const negocio = item.client && item.client.nombre_negocio ? item.client.nombre_negocio.toLowerCase() : '';
+                const contacto = item.client && item.client.nombre_contacto ? item.client.nombre_contacto.toLowerCase() : '';
+                const correo = item.client && item.client.correo ? item.client.correo.toLowerCase() : '';
+                const telefono = item.client && item.client.telefono ? item.client.telefono.toLowerCase() : '';
                 const orden = item.purchaseOrder ? item.purchaseOrder.toLowerCase() : '';
 
                 return numCliente.includes(query) || negocio.includes(query) || contacto.includes(query) || correo.includes(query) || telefono.includes(query) || orden.includes(query);
@@ -571,9 +583,20 @@
                 actualizarVistaCliente(filtrados[0]);
                 tbody.innerHTML = '';
                 filtrados.forEach((item) => {
-                    const fechaExp = new Date(item.fecha_expiracion);
-                    const hoy = new Date();
-                    const estaVencida = fechaExp < hoy;
+                    // Corrección de zona horaria para evitar desfase de un día
+                    const fechaExpStr = item.fecha_expiracion;
+                    let fechaExpText = 'N/A';
+                    let estaVencida = false;
+
+                    if (fechaExpStr) {
+                        const fechaExp = new Date(fechaExpStr);
+                        const hoy = new Date();
+                        estaVencida = fechaExp < hoy;
+                        
+                        // Formato seguro local extrayendo UTC para evitar retroceso de día
+                        const d = new Date(fechaExpStr);
+                        fechaExpText = d.toLocaleDateString('es-MX', { timeZone: 'UTC' });
+                    }
                     
                     const badgeEstatus = estaVencida 
                         ? `<span class="badge-vencida">LICENCIA VENCIDA</span>` 
@@ -582,11 +605,11 @@
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><input type="radio" name="seleccion-producto" onclick='seleccionarProducto(${JSON.stringify(item)})'></td>
-                        <td>${item.purchaseOrder}</td>
-                        <td>${item.tipo_producto}</td>
+                        <td>${item.purchaseOrder || 'S/N'}</td>
+                        <td>${item.tipo_producto || 'guardian_pos_lite'}</td>
                         <td style="color: var(--accent-orange); font-family: monospace;">${item.licenseKey}</td>
                         <td>${badgeEstatus}</td>
-                        <td>${fechaExp.toLocaleDateString()}</td>
+                        <td>${fechaExpText}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -597,11 +620,11 @@
         }
 
         function actualizarVistaCliente(item) {
-            document.getElementById('lbl-num-cliente').innerText = item.client.numero_cliente || 'CLI-S/N';
-            document.getElementById('lbl-negocio').innerText = item.client.nombre_negocio || '-';
-            document.getElementById('lbl-contacto').innerText = item.client.nombre_contacto || '-';
-            document.getElementById('lbl-telefono').innerText = item.client.telefono || '-';
-            document.getElementById('lbl-correo').innerText = item.client.correo || '-';
+            document.getElementById('lbl-num-cliente').innerText = item.client?.numero_cliente || 'CLI-S/N';
+            document.getElementById('lbl-negocio').innerText = item.client?.nombre_negocio || '-';
+            document.getElementById('lbl-contacto').innerText = item.client?.nombre_contacto || '-';
+            document.getElementById('lbl-telefono').innerText = item.client?.telefono || '-';
+            document.getElementById('lbl-correo').innerText = item.client?.correo || '-';
         }
 
         function limpiarVistaCliente() {
@@ -618,11 +641,20 @@
             document.getElementById('input-license-reac').value = item.licenseKey;
             document.getElementById('input-license-renov').value = item.licenseKey;
             
-            // Auto-completar datos en el formulario de cortesía/extensión
+            // Auto-completar los 6 campos en el formulario de cortesía/extensión
+            document.getElementById('cortesia-num-cliente').value = item.client?.numero_cliente || 'CLI-S/N';
+            document.getElementById('cortesia-negocio').value = item.client?.nombre_negocio || 'N/A';
             document.getElementById('cortesia-license').value = item.licenseKey;
             document.getElementById('cortesia-producto').value = item.tipo_producto;
-            if (item.identificador_unico) {
-                document.getElementById('cortesia-hwid').value = item.identificador_unico;
+            
+            // Extraer el tipo de dispositivo de hardwareBinding
+            const tipoDispositivo = item.hardwareBinding?.tipo_dispositivo || 'android_tablet';
+            document.getElementById('cortesia-dispositivo').value = tipoDispositivo;
+
+            if (item.hardwareBinding?.identificador_unico) {
+                document.getElementById('cortesia-hwid').value = item.hardwareBinding.identificador_unico;
+            } else {
+                document.getElementById('cortesia-hwid').value = '';
             }
         }
 
@@ -654,7 +686,10 @@
                 estado: "activa",
                 fecha_expiracion: nuevaFechaExpiracion.toISOString(),
                 fecha_limite_pago: nuevaFechaExpiracion.toISOString(),
-                ...(hwidIngresado && { identificador_unico: hwidIngresado })
+                hardwareBinding: {
+                    tipo_dispositivo: itemLicenciaSeleccionado.hardwareBinding?.tipo_dispositivo || 'android_tablet',
+                    identificador_unico: hwidIngresado || itemLicenciaSeleccionado.hardwareBinding?.identificador_unico || null
+                }
             };
 
             try {
@@ -702,7 +737,7 @@
                 estado: "activa",
                 fecha_expiracion: nuevaFechaExpiracion.toISOString(),
                 fecha_limite_pago: nuevaFechaExpiracion.toISOString(),
-                metodo_pago: { pasarela: "transferencia_manual", referencia: refPago }
+                metodo_pago: { pasarela: "transferencia_manual", comprobante_url: refPago }
             };
 
             try {
@@ -865,10 +900,10 @@
                         <button class="btn-blue" style="padding: 4px 8px; font-size: 11px;" onclick="enviarCorreoRealEmpleado('${emp._id}')">Correo</button>
                         <button class="btn-success" style="padding: 4px 8px; font-size: 11px;" onclick="cargarDatosEdicion('${emp._id}')">Editar</button>
                         ${emp.usuarioId !== 'EMP-ADMIN' ? `<button class="btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="eliminarEmpleado('${emp._id}')">Eliminar</button>` : ''}
-                    </td>
+                  </td>
                 `;
                 tbody.appendChild(tr);
-            });
+          });
         }
 
         function filtrarEmpleados() {
@@ -876,7 +911,7 @@
             if (!query) {
                 renderizarTablaEmpleados(listaGlobalEmpleados);
                 return;
-            }
+          }
             const filtrados = listaGlobalEmpleados.filter(e => e.nombre.toLowerCase().includes(query) || e.correo.toLowerCase().includes(query) || e.usuarioId.toLowerCase().includes(query));
             renderizarTablaEmpleados(filtrados);
         }

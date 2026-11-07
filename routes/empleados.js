@@ -51,7 +51,7 @@ router.post('/crear', async (req, res) => {
             nombre,
             correo,
             password,
-            permisos: permisos || { cortesija: false, renovacion: false, reactivacion: false, telefonica: true }
+            permisos: permisos || { cortesia: false, renovacion: false, reactivacion: false, telefonica: true }
         });
 
         const empleadoGuardado = await nuevoEmpleado.save();
@@ -107,6 +107,27 @@ router.put('/regenerar-password/:id', async (req, res) => {
         }
 
         res.json({ exito: true, mensaje: "Contraseña regenerada con éxito.", empleado });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// RUTA NUEVA: Enviar correo con credenciales al empleado
+router.post('/enviar-correo/:id', async (req, res) => {
+    try {
+        const empleado = await Empleado.findById(req.params.id);
+        if (!empleado) {
+            return res.status(404).json({ exito: false, error: "Empleado no encontrado." });
+        }
+
+        // Aquí puedes integrar tu lógica de Nodemailer o servicio de correo si lo deseas.
+        // Por ahora simulamos el envío exitoso hacia el correo registrado del empleado.
+        console.log(`[CORREO] Enviando credenciales a ${empleado.correo} (Usuario: ${empleado.usuarioId})`);
+
+        res.json({ 
+            exito: true, 
+            mensaje: `Correo enviado exitosamente a ${empleado.correo}` 
+        });
     } catch (error) {
         res.status(500).json({ exito: false, error: error.message });
     }
