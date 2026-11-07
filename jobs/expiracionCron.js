@@ -3,7 +3,7 @@ const Licencia = require('../models/Licencia');
 
 // Programar la tarea para que se ejecute todos los días a la medianoche ('0 0 * * *')
 // Para pruebas de desarrollo, puedes cambiarlo temporalmente a cada minuto: '*/1 * * * *'
-cron.schedule('0 0 * * *', async () => {
+cron.schedule('*/1 * * * *', async () => {
     try {
         const ahora = new Date();
         
