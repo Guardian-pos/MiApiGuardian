@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Empleado = require('../models/Empleado');
+const { Resend } = require('resend');
+
+// Inicializar Resend con la API Key configurada en las variables de entorno
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // RUTA: Iniciar sesión del operador
 router.post('/login', async (req, res) => {
@@ -112,7 +116,7 @@ router.put('/regenerar-password/:id', async (req, res) => {
     }
 });
 
-// RUTA NUEVA: Enviar correo con credenciales al empleado
+// RUTA: Enviar correo real con credenciales al empleado utilizando Resend
 router.post('/enviar-correo/:id', async (req, res) => {
     try {
         const empleado = await Empleado.findById(req.params.id);
@@ -120,9 +124,28 @@ router.post('/enviar-correo/:id', async (req, res) => {
             return res.status(404).json({ exito: false, error: "Empleado no encontrado." });
         }
 
-        // Aquí puedes integrar tu lógica de Nodemailer o servicio de correo si lo deseas.
-        // Por ahora simulamos el envío exitoso hacia el correo registrado del empleado.
-        console.log(`[CORREO] Enviando credenciales a ${empleado.correo} (Usuario: ${empleado.usuarioId})`);
+        const { data, error } = await resend.emails.send({
+            from: 'Guardián POS Lite <soporte@guardianpos.mx>',
+            to: [empleado.correo],
+            subject: 'Tus Credenciales de Acceso - Panel Administrativo Guardián POS',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                    <h2 style="color: #2563EB;">¡Hola, ${empleado.nombre}!</h2>
+                    <p>Se te han asignado o actualizado tus credenciales de acceso para el Panel Administrativo Central de Guardián POS.</p>
+                    <p>Tus datos de acceso son:</p>
+                    <div style="background: #F3F4F6; padding: 15px; font-size: 16px; border-radius: 6px; margin: 20px 0;">
+                        <p><strong>Usuario ID:</strong> <span style="color: #1E40AF; font-family: monospace;">${empleado.usuarioId}</span></p>
+                        <p><strong>Contraseña:</strong> <span style="color: #1E40AF; font-family: monospace;">${empleado.password}</span></p>
+                    </div>
+                    <p>Por favor, guárdalos en un lugar seguro para ingresar al panel administrativo.</p>
+                </div>
+            `,
+        });
+
+        if (error) {
+            console.error('Error devuelto por Resend API al enviar correo de empleado:', error);
+            return res.status(500).json({ exito: false, error: 'Error al enviar el correo mediante el servicio de mensajería.' });
+        }
 
         res.json({ 
             exito: true, 
