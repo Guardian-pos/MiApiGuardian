@@ -385,6 +385,87 @@ router.post('/usuarios/guardar', async (req, res) => {
     } catch (error) {
         res.status(500).json({ exito: false, error: error.message });
     }
+ // =========================================================================
+// MÓDULO WEB: ACTIVACIÓN Y CREACIÓN DE CONTRASEÑA WEB PARA EL PORTAL
+// =========================================================================
+
+// RUTA: Verificar datos (Licencia/Número de cliente y Correo) para primer acceso web
+router.post('/web/verificar-activacion', async (req, res) => {
+    try {
+        const { licencia, email } = req.body;
+
+        if (!licencia || !email) {
+            return res.status(400).json({ 
+                exito: false, 
+                error: 'Debe proporcionar la clave de licencia/número de cliente y el correo electrónico.' 
+            });
+        }
+
+        // Buscamos en MongoDB si coincide la licencia o el número de cliente Y el correo del cliente
+        const clienteLicencia = await Licencia.findOne({ 
+            $or: [{ licenseKey: licencia }, { 'client.numero_cliente': licencia }],
+            'client.correo': email 
+        });
+
+        if (!clienteLicencia) {
+            return res.status(404).json({ 
+                exito: false, 
+                error: 'No se encontró ningún registro con esos datos. Verifique su licencia y correo.' 
+            });
+        }
+
+        return res.status(200).json({ 
+            exito: true, 
+            mensaje: 'Datos verificados correctamente.', 
+            idLicencia: clienteLicencia._id 
+        });
+
+    } catch (error) {
+        console.error('Error al verificar activación web:', error);
+        return res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// RUTA: Guardar la Contraseña Web por primera vez en el documento de la licencia
+router.post('/web/crear-password', async (req, res) => {
+    try {
+        const { idLicencia, passwordWeb } = req.body;
+
+        if (!idLicencia || !passwordWeb) {
+            return res.status(400).json({ 
+                exito: false, 
+                error: 'Faltan datos obligatorios para crear la contraseña.' 
+            });
+        }
+
+        const licencia = await Licencia.findById(idLicencia);
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: 'Registro de licencia no encontrado.' });
+        }
+
+        // Encriptamos la contraseña web usando bcrypt por seguridad
+        const bcrypt = require('bcrypt');
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(passwordWeb, salt);
+
+        // Guardamos la contraseña web (asegúrate de que tu modelo Licencia soporte este campo o usa un campo flexible)
+        licencia.passwordWeb = hashedPassword;
+        licencia.webActivada = true;
+        licencia.updatedAt = Date.now();
+        
+        await licencia.save();
+
+        return res.status(200).json({ 
+            exito: true, 
+            mensaje: '¡Contraseña web creada con éxito! Ya puede iniciar sesión en su panel.' 
+        });
+
+    } catch (error) {
+        console.error('Error al guardar la contraseña web:', error);
+        return res.status(500).json({ exito: false, error: error.message });
+    }
+ });
+
 });
 
 module.exports = router;
