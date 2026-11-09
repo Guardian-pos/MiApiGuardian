@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Licencia = require('../models/Licencia');
+const bcrypt = require('bcrypt');
 
 // RUTA: Registrar una nueva licencia / orden de compra (simulando la pasarela o compra web)
 router.post('/crear', async (req, res) => {
@@ -385,9 +386,51 @@ router.post('/usuarios/guardar', async (req, res) => {
     } catch (error) {
         res.status(500).json({ exito: false, error: error.message });
     }
- // =========================================================================
-// MÓDULO WEB: ACTIVACIÓN Y CREACIÓN DE CONTRASEÑA WEB PARA EL PORTAL
+});
+
+
 // =========================================================================
+// MÓDULO WEB: AUTENTICACIÓN, ACTIVACIÓN Y CREACIÓN DE CONTRASEÑA
+// =========================================================================
+
+// RUTA: Iniciar sesión en el portal web con correo y contraseña web cifrada
+router.post('/web/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ exito: false, error: 'Faltan datos obligatorios.' });
+        }
+
+        // Buscamos la licencia que tenga ese correo y cuya contraseña web ya esté creada
+        const licencia = await Licencia.findOne({ 'client.correo': email });
+
+        if (!licencia || !licencia.passwordWeb) {
+            return res.status(401).json({ exito: false, error: 'Credenciales incorrectas o cuenta no activada.' });
+        }
+
+        // Comparamos la contraseña ingresada con el hash cifrado de bcrypt
+        const passwordValido = await bcrypt.compare(password, licencia.passwordWeb);
+
+        if (!passwordValido) {
+            return res.status(401).json({ exito: false, error: 'Contraseña web incorrecta.' });
+        }
+
+        return res.status(200).json({
+            exito: true,
+            mensaje: '¡Bienvenido al panel!',
+            datos: {
+                numero_cliente: licencia.client.numero_cliente,
+                nombre_negocio: licencia.client.nombre_negocio,
+                correo: licencia.client.correo
+            }
+        });
+
+    } catch (error) {
+        console.error('Error en login web:', error);
+        return res.status(500).json({ exito: false, error: error.message });
+    }
+});
 
 // RUTA: Verificar datos (Licencia/Número de cliente y Correo) para primer acceso web
 router.post('/web/verificar-activacion', async (req, res) => {
@@ -444,11 +487,10 @@ router.post('/web/crear-password', async (req, res) => {
         }
 
         // Encriptamos la contraseña web usando bcrypt por seguridad
-        const bcrypt = require('bcrypt');
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(passwordWeb, salt);
 
-        // Guardamos la contraseña web (asegúrate de que tu modelo Licencia soporte este campo o usa un campo flexible)
+        // Guardamos la contraseña web y marcamos como activada
         licencia.passwordWeb = hashedPassword;
         licencia.webActivada = true;
         licencia.updatedAt = Date.now();
@@ -464,8 +506,6 @@ router.post('/web/crear-password', async (req, res) => {
         console.error('Error al guardar la contraseña web:', error);
         return res.status(500).json({ exito: false, error: error.message });
     }
- });
-
 });
 
 module.exports = router;
