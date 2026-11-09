@@ -434,9 +434,10 @@ router.post('/web/login', async (req, res) => {
 
 // RUTA: Verificar datos (Licencia/Número de cliente y Correo) para primer acceso web
 router.post('/web/verificar-activacion', async (req, res) => {
+
     try {
         const { licencia, email } = req.body;
-
+           console.log("--> RECIBIDA PETICIÓN DE VERIFICACIÓN WEB:", req.body); // <-- AQUÍ EL LOG
         if (!licencia || !email) {
             return res.status(400).json({ 
                 exito: false, 
