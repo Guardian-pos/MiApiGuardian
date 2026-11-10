@@ -40,27 +40,27 @@ router.post('/solicitar-prueba', async (req, res) => {
     // Generar un número de cliente único para el tenant
     const numeroClienteUnico = 'CLI-' + Math.floor(1000 + Math.random() * 9000);
 
-    // Guardar el registro en MongoDB Atlas asegurando el numero_cliente y la direccion opcional
+   // Guardar el registro en MongoDB Atlas asegurando el numero_cliente y la direccion opcional
     const nuevaLicencia = new Licencia({
-      tipo_producto: 'guardian_pos_lite',
-      licenseKey: licenseKey,
-      client: {
-        numero_cliente: numeroClienteUnico,
-        nombre_negocio: negocio,
-        nombre_contacto: contacto,
-        telefono: telefono,
-        correo: correo,
-        direccion: direccion ? direccion.trim() : '' // <-- Se guarda si viene, o vacío si no se especificó
-      },
-      estado: 'activa',
-      fecha_expiracion: fechaExpiracion,
-      metodo_pago: {
-        pasarela: 'prueba_gratuita'
-      },
-      usuarios: []
+        tipo_producto: 'guardian_pos_lite',
+        licenseKey: licenseKey,
+        client: {
+            numero_cliente: numeroClienteUnico,
+            nombre_negocio: negocio,
+            nombre_contacto: contacto,
+            telefono: telefono,
+            correo: correo,
+            direccion: direccion ? direccion.trim() : '' // <-- Se guarda si viene, o vacío si no se especificó
+        },
+        estado: 'prueba_activa', // <-- Corregido para coincidir con los enums válidos de Mongoose para trials
+        fecha_expiracion: fechaExpiracion,
+        metodo_pago: {
+            pasarela: 'prueba_gratuita'
+        },
+        usuarios: []
     });
 
-    await nuevaLicencia.save();
+    await nuevaLicencia.save(); 
 
     // Enviar correo corporativo utilizando la API HTTP de Resend
     const { data, error } = await resend.emails.send({
