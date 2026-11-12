@@ -18,7 +18,11 @@ router.post('/', async (req, res) => {
     const productData = req.body;
     const tenantId = productData.tenantId || productData.idsucursal;
     
+    // LOG DE DEPURACIÓN (Muestra en la consola de Render/Node qué llegó exactamente)
+    console.log('>>> [RECIBIENDO PRODUCTO]:', JSON.stringify(productData));
+
     if (!tenantId || !productData.codigoBarras || !productData.nombre) {
+      console.log('>>> [ERROR BACKEND]: Faltan campos obligatorios -> tenantId:', tenantId, '| codigoBarras:', productData.codigoBarras, '| nombre:', productData.nombre);
       return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
     }
 
@@ -32,8 +36,8 @@ router.post('/', async (req, res) => {
 
     res.status(200).json({ success: true, message: 'Producto guardado exitosamente.', data: productoActualizado });
   } catch (error) {
-    console.error('Error al guardar producto:', error);
-    res.status(500).json({ success: false, message: 'Error interno al guardar el producto.' });
+    console.error('>>> [ERROR CRÍTICO AL GUARDAR PRODUCTO EN MONGO]:', error);
+    res.status(500).json({ success: false, message: 'Error interno al guardar el producto.', error: error.message });
   }
 });
 
