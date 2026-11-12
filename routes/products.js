@@ -28,11 +28,12 @@ router.post('/', async (req, res) => {
 
     productData.tenantId = tenantId.trim().toLowerCase();
 
-    const productoActualizado = await Product.findOneAndUpdate(
-      { tenantId: productData.tenantId, codigoBarras: productData.codigoBarras },
-      productData,
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+// AHORA (Limpio y actualizado al estándar moderno de Mongoose):
+const productoActualizado = await Product.findOneAndUpdate(
+  { tenantId: productData.tenantId, codigoBarras: productData.codigoBarras },
+  productData,
+  { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
+);    
 
     res.status(200).json({ success: true, message: 'Producto guardado exitosamente.', data: productoActualizado });
   } catch (error) {
