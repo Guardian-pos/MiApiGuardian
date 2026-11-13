@@ -42,6 +42,36 @@ router.post('/', async (req, res) => {
   }
 });
 
+// =========================================================================
+// ➔ RUTA RESTAURADA: ACTUALIZACIÓN RÁPIDA DE EXISTENCIA (BORRAR / PONER EN CEROS)
+// =========================================================================
+router.put('/existencia', async (req, res) => {
+  try {
+    const { tenantId, codigoBarras, existencia } = req.body;
+
+    console.log('>>> [ACTUALIZANDO EXISTENCIA]:', { tenantId, codigoBarras, existencia });
+
+    if (!tenantId || !codigoBarras) {
+      return res.status(400).json({ success: false, message: 'Faltan tenantId o codigoBarras.' });
+    }
+
+    const productoActualizado = await Product.findOneAndUpdate(
+      { tenantId: tenantId.trim().toLowerCase(), codigoBarras: codigoBarras.trim() },
+      { $set: { existencia: existencia ?? 0.0 } },
+      { new: true }
+    );
+
+    if (!productoActualizado) {
+      return res.status(404).json({ success: false, message: 'Producto no encontrado en la base de datos.' });
+    }
+
+    res.status(200).json({ success: true, message: 'Existencia actualizada exitosamente.', data: productoActualizado });
+  } catch (error) {
+    console.error('>>> [ERROR AL ACTUALIZAR EXISTENCIA]:', error);
+    res.status(500).json({ success: false, message: 'Error interno al actualizar existencia.', error: error.message });
+  }
+});
+
 router.post('/sync-bulk', async (req, res) => {
   try {
     const { tenantId, productos } = req.body;
