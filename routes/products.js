@@ -18,7 +18,7 @@ router.post('/', async (req, res) => {
     const productData = req.body;
     const tenantId = productData.tenantId || productData.idsucursal;
     
-    // LOG DE DEPURACIÓN (Muestra en la consola de Render/Node qué llegó exactamente)
+    // LOG DE DEPURACIÓN (Muestra en la consola de Render/Node qué llegó exactamente, incluidos horarios y días)
     console.log('>>> [RECIBIENDO PRODUCTO]:', JSON.stringify(productData));
 
     if (!tenantId || !productData.codigoBarras || !productData.nombre) {
@@ -28,12 +28,12 @@ router.post('/', async (req, res) => {
 
     productData.tenantId = tenantId.trim().toLowerCase();
 
-// AHORA (Limpio y actualizado al estándar moderno de Mongoose):
-const productoActualizado = await Product.findOneAndUpdate(
-  { tenantId: productData.tenantId, codigoBarras: productData.codigoBarras },
-  productData,
-  { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
-);    
+    // Actualiza o inserta el producto (incluyendo configuración horaria, días activos y precioHorario)
+    const productoActualizado = await Product.findOneAndUpdate(
+      { tenantId: productData.tenantId, codigoBarras: productData.codigoBarras },
+      productData,
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
+    );    
 
     res.status(200).json({ success: true, message: 'Producto guardado exitosamente.', data: productoActualizado });
   } catch (error) {

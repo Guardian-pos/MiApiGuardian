@@ -30,7 +30,9 @@ const productSchema = new mongoose.Schema({
   esCombo: { type: Boolean, default: false },
   horaFin: { type: String, default: '' },
   horaInicio: { type: String, default: '' },
-  horarioActivo: { type: Boolean, default: false }
+  horarioActivo: { type: Boolean, default: false },
+  // ➔ NUEVO: Campo para almacenar el precio especial de venta bajo horario activo
+  precioHorario: { type: Number, default: 0.0 }
 }, {
   timestamps: true
 });
