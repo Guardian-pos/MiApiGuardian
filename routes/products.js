@@ -58,7 +58,7 @@ router.put('/existencia', async (req, res) => {
     const productoActualizado = await Product.findOneAndUpdate(
       { tenantId: tenantId.trim().toLowerCase(), codigoBarras: codigoBarras.trim() },
       { $set: { existencia: existencia ?? 0.0 } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!productoActualizado) {
@@ -85,10 +85,11 @@ router.post('/sync-bulk', async (req, res) => {
     for (let item of productos) {
       item.tenantId = cleanTenantId;
       if (item.codigoBarras) {
+        item.codigoBarras = item.codigoBarras.trim(); // <-- Evita espacios fantasma
         await Product.findOneAndUpdate(
           { tenantId: cleanTenantId, codigoBarras: item.codigoBarras },
           item,
-          { new: true, upsert: true, setDefaultsOnInsert: true }
+          { upsert: true, setDefaultsOnInsert: true } // <-- Sin new: true
         );
         sincronizados++;
       }
@@ -100,5 +101,6 @@ router.post('/sync-bulk', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno.' });
   }
 });
+
 
 module.exports = router;
