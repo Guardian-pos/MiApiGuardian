@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 
 const MovimientoSchema = new mongoose.Schema({
   tenantId: { type: String, required: true }, // Clave de licencia o sucursal
+  terminalId: { type: String, required: true }, // Identificador único o prefijo de la tableta (ej. T1, T2, etc.)
+  
   tipoMovimiento: { 
     type: String, 
     required: true, 
@@ -9,11 +11,22 @@ const MovimientoSchema = new mongoose.Schema({
   },
   
   // Campos para Ventas y Devoluciones
-  folioTicket: { type: String },
+  folioTicket: { type: String, required: true, unique: false }, // Ej. T1-000142 (Único por terminal)
   totalOriginal: { type: Number },
   totalVenta: { type: Number },
   totalDevolucion: { type: Number },
-  items: { type: Array },
+  
+  // Estructura detallada de los ítems de venta
+  items: [{
+    idProducto: { type: String },
+    codigoBarras: { type: String },
+    nombre: { type: String },
+    cantidad: { type: Number },
+    precioUnitario: { type: Number },
+    tipoPrecioAplicado: { type: String, enum: ['REGULAR', 'HORARIO', 'PROMOCION'], default: 'REGULAR' },
+    subtotal: { type: Number },
+    costoUnitario: { type: Number }
+  }],
   
   // Campos para Movimientos de Caja (Entradas / Salidas)
   concepto: { type: String },
