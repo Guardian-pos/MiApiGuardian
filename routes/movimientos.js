@@ -119,6 +119,48 @@ router.get('/ticket/:tenantId/:folio', async (routerReq, routerRes) => {
   }
 });
 
+// =========================================================================
+// GET: Consultar ventas/tickets por un rango de fechas normalizado (OBLIGATORIO ANTES DE /:tenantId)
+// =========================================================================
+router.get('/rango-fechas/:tenantId', async (routerReq, routerRes) => {
+  try {
+    const { tenantId } = routerReq.params;
+    const { inicio, fin } = routerReq.query;
+
+    console.log(`>>> [RANGO FECHAS] Consultando para tenant [${tenantId}] del [${inicio}] al [${fin}]`);
+
+    if (!inicio || !fin) {
+      return routerRes.status(400).json({ 
+        exito: false, 
+        error: 'Faltan los parámetros de fecha inicio y fin' 
+      });
+    }
+
+    // Consultamos en MongoDB los movimientos tipo 'venta' dentro del rango de fechas
+    const ticketsEncontrados = await Movimiento.find({
+      tenantId: tenantId.trim().toLowerCase(),
+      tipoMovimiento: 'venta',
+      fechaEmision: {
+        $gte: new Date(inicio),
+        $lte: new Date(fin)
+      }
+    }).sort({ fechaEmision: -1 });
+
+    console.log(`>>> [RANGO FECHAS] Se encontraron ${ticketsEncontrados.length} tickets en el rango.`);
+
+    routerRes.json({ 
+      exito: true, 
+      data: ticketsEncontrados 
+    });
+  } catch (error) {
+    console.error('>>> [ERROR AL CONSULTAR RANGO DE FECHAS]:', error);
+    routerRes.status(500).json({ 
+      exito: false, 
+      error: error.message 
+    });
+  }
+});
+
 // GET: Consultar el historial de movimientos de una sucursal específica
 router.get('/:tenantId', async (routerReq, routerRes) => {
   try {
