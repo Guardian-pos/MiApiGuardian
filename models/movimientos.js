@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const MovimientoSchema = new mongoose.Schema({
-  tenantId: { type: String, required: true }, // Clave de licencia o sucursal
+  tenantId: { type: String, required: true }, // Numero de Cliente
   terminalId: { type: String, required: true }, // Identificador único o prefijo de la tableta (ej. T1, T2, etc.)
   
   tipoMovimiento: { 
