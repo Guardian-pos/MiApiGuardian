@@ -31,7 +31,7 @@ app.use('/api', trialRoutes);
 
 // NUEVO: Importar y usar las rutas de movimientos (Ventas, Devoluciones, Caja, Cortes)
 const movimientosRutas = require('./routes/movimientos');
-app.use('/api/ventas', movimientosRutas);
+app.use('/api/movimientos', movimientosRutas);
 
 // Ruta de prueba inicial
 app.get('/', (req, res) => {
