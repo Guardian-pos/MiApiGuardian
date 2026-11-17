@@ -83,6 +83,42 @@ router.post('/', async (routerReq, routerRes) => {
   }
 });
 
+// =========================================================================
+// GET: Buscar un ticket específico por su tenantId y folio (OBLIGATORIO ANTES DE /:tenantId)
+// =========================================================================
+router.get('/ticket/:tenantId/:folio', async (routerReq, routerRes) => {
+  try {
+    const { tenantId, folio } = routerReq.params;
+    console.log(`>>> [BUSCAR TICKET] Buscando ticket para tenant [${tenantId}] con folio [${folio}]`);
+
+    const ticketEncontrado = await Movimiento.findOne({ 
+      tenantId: tenantId.trim().toLowerCase(), 
+      folioTicket: folio.trim(),
+      tipoMovimiento: 'venta' 
+    });
+
+    if (!ticketEncontrado) {
+      console.log(`>>> [BUSCAR TICKET] Ticket no encontrado en MongoDB.`);
+      return routerRes.status(404).json({ 
+        exito: false, 
+        error: 'Ticket no encontrado' 
+      });
+    }
+
+    console.log(`>>> [BUSCAR TICKET] ¡Ticket encontrado con éxito! Folio: ${ticketEncontrado.folioTicket}`);
+    routerRes.json({ 
+      exito: true, 
+      data: ticketEncontrado 
+    });
+  } catch (error) {
+    console.error('>>> [ERROR AL BUSCAR TICKET]:', error);
+    routerRes.status(500).json({ 
+      exito: false, 
+      error: error.message 
+    });
+  }
+});
+
 // GET: Consultar el historial de movimientos de una sucursal específica
 router.get('/:tenantId', async (routerReq, routerRes) => {
   try {
