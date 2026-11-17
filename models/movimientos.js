@@ -10,8 +10,15 @@ const MovimientoSchema = new mongoose.Schema({
     enum: ['venta', 'devolucion', 'entrada_caja', 'salida_caja', 'corte_caja'] 
   },
   
-  // Campos para Ventas y Devoluciones
-  folioTicket: { type: String, required: true, unique: false }, // Ej. T1-000142 (Único por terminal)
+  // Campos para Ventas y Devoluciones (Obligatorio SOLO si es venta o devolución)
+  folioTicket: { 
+    type: String, 
+    required: function() {
+      return this.tipoMovimiento === 'venta' || this.tipoMovimiento === 'devolucion';
+    }, 
+    unique: false 
+  }, // Ej. T1-000142 (Único por terminal)
+  
   totalOriginal: { type: Number },
   totalVenta: { type: Number },
   totalDevolucion: { type: Number },
@@ -39,10 +46,13 @@ const MovimientoSchema = new mongoose.Schema({
   totalEntradas: { type: Number },
   totalSalidas: { type: Number },
   diferencia: { type: Number },
- // totalRecargas: { type: Number, default: 0 },
- // totalServicios: { type: Number, default: 0 },
+  // totalRecargas: { type: Number, default: 0 },
+  // totalServicios: { type: Number, default: 0 },
   
   fechaEmision: { type: Date, default: Date.now }
 });
+
+// Índice compuesto indispensable para aislar por sucursal y ordenar eficientemente en un futuro con miles de clientes
+MovimientoSchema.index({ tenantId: 1, fechaEmision: -1 });
 
 module.exports = mongoose.model('Movimiento', MovimientoSchema);
