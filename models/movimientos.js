@@ -39,8 +39,8 @@ const MovimientoSchema = new mongoose.Schema({
   totalEntradas: { type: Number },
   totalSalidas: { type: Number },
   diferencia: { type: Number },
-  totalRecargas: { type: Number, default: 0 },
-  totalServicios: { type: Number, default: 0 },
+ // totalRecargas: { type: Number, default: 0 },
+ // totalServicios: { type: Number, default: 0 },
   
   fechaEmision: { type: Date, default: Date.now }
 });
