@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Movimiento = require('../models/movimientos');
-const Producto = require('../models/Product'); // ➔ Modelo de productos para la actualización de stock
+const Producto = require('../models/Product'); 
 
-// POST: Registrar movimiento financiero (Ventas y Devoluciones con sincronización de inventario)
+// POST: Registrar movimiento financiero (Ventas y Devoluciones con terminalId y stock)
 router.post('/', async (routerReq, routerRes) => {
   console.log('--------------------------------------------------');
   console.log('>>> [BACKEND MONGODB] RECIBIENDO PETICIÓN POST EN /movimientos');
@@ -22,12 +22,10 @@ router.post('/', async (routerReq, routerRes) => {
       });
     }
 
-    // 2. Procesamiento de inventarios basado estrictamente en tenantId y codigoBarras
+    // 2. Procesamiento de inventarios basado en tenantId y codigoBarras
     if (tipoMovimiento === 'venta' && Array.isArray(items)) {
-      console.log(`>>> [INVENTARIO] Procesando VENTA con ${items.length} ítems. Descontando stock...`);
+      console.log(`>>> [INVENTARIO] Procesando VENTA (${terminalId || 'Sin Terminal'}) con ${items.length} ítems. Descontando stock...`);
       for (let item of items) {
-        console.log(`>>> Buscando producto - Tenant: [${tenantId}] | Código de Barras: [${item.codigoBarras}] | Cantidad a descontar: ${item.cantidad}`);
-        
         const productoActualizado = await Producto.findOneAndUpdate(
           { tenantId: tenantId, codigoBarras: item.codigoBarras },
           { $inc: { existencia: -item.cantidad } },
@@ -35,16 +33,14 @@ router.post('/', async (routerReq, routerRes) => {
         );
 
         if (!productoActualizado) {
-          console.log(`>>> [AVISO] No se encontró el producto con código de barras [${item.codigoBarras}] para descontar stock.`);
+          console.log(`>>> [AVISO] No se encontró el producto con código [${item.codigoBarras}] para descontar stock.`);
         } else {
           console.log(`>>> [STOCK ACTUALIZADO] Producto: ${productoActualizado.nombre} | Nueva existencia: ${productoActualizado.existencia}`);
         }
       }
     } else if (tipoMovimiento === 'devolucion' && Array.isArray(items)) {
-      console.log(`>>> [INVENTARIO] Procesando DEVOLUCIÓN con ${items.length} ítems. Reponiendo stock...`);
+      console.log(`>>> [INVENTARIO] Procesando DEVOLUCIÓN (${terminalId || 'Sin Terminal'}) con ${items.length} ítems. Reponiendo stock...`);
       for (let item of items) {
-        console.log(`>>> Buscando producto - Tenant: [${tenantId}] | Código de Barras: [${item.codigoBarras}] | Cantidad a reponer: ${item.cantidad}`);
-        
         const productoActualizado = await Producto.findOneAndUpdate(
           { tenantId: tenantId, codigoBarras: item.codigoBarras },
           { $inc: { existencia: item.cantidad } },
@@ -52,22 +48,22 @@ router.post('/', async (routerReq, routerRes) => {
         );
 
         if (!productoActualizado) {
-          console.log(`>>> [AVISO] No se encontró el producto con código de barras [${item.codigoBarras}] para reponer stock.`);
+          console.log(`>>> [AVISO] No se encontró el producto con código [${item.codigoBarras}] para reponer stock.`);
         } else {
           console.log(`>>> [STOCK RESTAURADO] Producto: ${productoActualizado.nombre} | Nueva existencia: ${productoActualizado.existencia}`);
         }
       }
     } 
 
-    // 3. Guardar el movimiento en la base de datos (con su propio identificador único de venta)
-    console.log('>>> [DB] Guardando el documento del movimiento en MongoDB Atlas...');
+    // 3. Guardar el movimiento en la base de datos (incluyendo el terminalId oficial)
+    console.log('>>> [DB] Guardando el documento del movimiento con terminalId:', terminalId);
     const nuevoMovimiento = new Movimiento(routerReq.body);
     await nuevoMovimiento.save();
     console.log('>>> [ÉXITO] Movimiento guardado correctamente en la colección de movimientos.');
 
     routerRes.status(201).json({ 
       exito: true, 
-      mensaje: 'Transacción registrada e inventario sincronizado con éxito' 
+      mensaje: 'Transacción registrada, terminal identificada e inventario sincronizado con éxito' 
     });
 
   } catch (error) {
@@ -79,12 +75,10 @@ router.post('/', async (routerReq, routerRes) => {
   }
 });
 
-// GET: Consultar el historial de movimientos de una sucursal/tenant específico
+// GET: Consultar el historial de movimientos de una sucursal específica
 router.get('/:tenantId', async (routerReq, routerRes) => {
   try {
     const { tenantId } = routerReq.params;
-    console.log(`>>> [GET] Consultando movimientos para el tenant: ${tenantId}`);
-    
     const movimientos = await Movimiento.find({ tenantId }).sort({ fechaEmision: -1 });
     routerRes.json({ 
       exito: true, 
