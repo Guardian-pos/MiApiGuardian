@@ -209,6 +209,80 @@ router.get('/rango-fechas/:tenantId', async (routerReq, routerRes) => {
 });
 
 // =========================================================================
+// GET: Calcular financieros en vivo para el Cierre de Caja (INTEGRADO NUEVO)
+// =========================================================================
+router.get('/financieros/:tenantId', async (routerReq, routerRes) => {
+  try {
+    const { tenantId } = routerReq.params;
+    const { usuarioId, rol } = routerReq.query;
+
+    console.log(`>>> [FINANCIEROS] Calculando para tenant [${tenantId}], usuario: [${usuarioId}], rol: [${rol}]`);
+
+    let filtro = { tenantId: tenantId.trim().toLowerCase() };
+
+    // Si es un empleado, limitamos estrictamente el cálculo a su ID
+    if (rol && rol.toLowerCase() !== 'administrador' && usuarioId) {
+      filtro.usuarioId = usuarioId;
+    }
+
+    const movimientos = await Movimiento.find(filtro);
+
+    let totalVentas = 0;
+    let devoluciones = 0;
+    let entradaEfectivo = 0;
+    let salidaEfectivo = 0;
+
+    movimientos.forEach(m => {
+      const tipo = (m.tipoMovimiento || '').toLowerCase();
+      
+      if (tipo === 'venta') {
+        totalVentas += Number(m.totalVenta || m.totalOriginal || 0);
+      } else if (tipo === 'devolucion' || tipo === 'devolucion_cuarentena') {
+        devoluciones += Number(m.totalDevolucion || 0);
+      } else if (tipo === 'entrada_caja') {
+        entradaEfectivo += Number(m.monto || 0);
+      } else if (tipo === 'salida_caja') {
+        salidaEfectivo += Number(m.monto || 0);
+      }
+    });
+
+    // Total final esperado en caja
+    const totalFinal = totalVentas - devoluciones - salidaEfectivo + entradaEfectivo;
+
+    let nombreUsuario = 'OPERADOR';
+    if (movimientos.length > 0 && movimientos[movimientos.length - 1].nombreUsuario) {
+      nombreUsuario = movimientos[movimientos.length - 1].nombreUsuario;
+    }
+
+    const datosFinancieros = {
+      _id: usuarioId || 'global',
+      usuarioId: usuarioId || '',
+      nombreUsuario: nombreUsuario,
+      rol: rol || 'empleado',
+      fechaInicial: movimientos.length > 0 ? movimientos[movimientos.length - 1].fechaEmision : new Date().toISOString(),
+      fechaFinal: new Date().toISOString(),
+      totalVentas,
+      devoluciones,
+      salidaEfectivo,
+      entradaEfectivo,
+      totalFinal
+    };
+
+    routerRes.json({
+      exito: true,
+      data: datosFinancieros
+    });
+
+  } catch (error) {
+    console.error('>>> [ERROR AL CALCULAR FINANCIEROS]:', error);
+    routerRes.status(500).json({
+      exito: false,
+      error: error.message
+    });
+  }
+});
+
+// =========================================================================
 // GET: Consultar historial de movimientos (Con filtro opcional por cajero/usuario)
 // =========================================================================
 router.get('/:tenantId', async (routerReq, routerRes) => {
