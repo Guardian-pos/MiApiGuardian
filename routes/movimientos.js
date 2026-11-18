@@ -84,14 +84,53 @@ router.post('/', async (routerReq, routerRes) => {
 });
 
 // =========================================================================
-// GET: Buscar un ticket específico con Ecuación Antifraude de Devoluciones Previas
+// FUNCIÓN AUXILIAR: Ecuación Antifraude (Resta devoluciones previas a un ticket)
+// =========================================================================
+async function aplicarEcuacionAntifraude(tenantId, ticketVenta) {
+  let ticketObj = ticketVenta.toObject ? ticketVenta.toObject() : { ...ticketVenta };
+  
+  // Buscamos si ya existen devoluciones previas para este mismo folio
+  const devolucionesPrevias = await Movimiento.find({ 
+    tenantId: tenantId.trim().toLowerCase(), 
+    folioTicket: ticketObj.folioTicket.trim(),
+    tipoMovimiento: { $in: ['devolucion', 'devolucion_cuarentena'] }
+  });
+
+  if (devolucionesPrevias && devolucionesPrevias.length > 0) {
+    ticketObj.items = ticketObj.items.map(itemOriginal => {
+      let cantidadDevueltaAcumulada = 0;
+      
+      devolucionesPrevias.forEach(dev => {
+        if (Array.isArray(dev.items)) {
+          dev.items.forEach(itemDev => {
+            if (itemDev.codigoBarras === itemOriginal.codigoBarras || itemDev.idProducto === itemOriginal.idProducto) {
+              cantidadDevueltaAcumulada += (itemDev.cantidad || 0);
+            }
+          });
+        }
+      });
+
+      const cantidadRestante = Math.max(0, itemOriginal.cantidad - cantidadDevueltaAcumulada);
+
+      return {
+        ...itemOriginal,
+        cantidad: cantidadRestante,
+        cantidadComprada: cantidadRestante,
+        cantidadYaDevuelta: cantidadDevueltaAcumulada
+      };
+    });
+  }
+  return ticketObj;
+}
+
+// =========================================================================
+// GET: Buscar un ticket específico por su folio
 // =========================================================================
 router.get('/ticket/:tenantId/:folio', async (routerReq, routerRes) => {
   try {
     const { tenantId, folio } = routerReq.params;
     console.log(`>>> [BUSCAR TICKET] Buscando ticket para tenant [${tenantId}] con folio [${folio}]`);
 
-    // 1. Buscamos el ticket original de venta
     const ticketVenta = await Movimiento.findOne({ 
       tenantId: tenantId.trim().toLowerCase(), 
       folioTicket: folio.trim(),
@@ -106,49 +145,12 @@ router.get('/ticket/:tenantId/:folio', async (routerReq, routerRes) => {
       });
     }
 
-    // 2. Buscamos si ya existen devoluciones previas para este mismo folio
-    const devolucionesPrevias = await Movimiento.find({ 
-      tenantId: tenantId.trim().toLowerCase(), 
-      folioTicket: folio.trim(),
-      tipoMovimiento: { $in: ['devolucion', 'devolucion_cuarentena'] }
-    });
-
-    // 3. Convertimos el documento de Mongoose a objeto plano para aplicar la resta matemática
-    let ticketObj = ticketVenta.toObject();
-
-    // 4. Ecuación de descuento: Restamos las cantidades que ya se devolvieron anteriormente
-    if (devolucionesPrevias && devolucionesPrevias.length > 0) {
-      console.log(`>>> [ANTIFRAUDE] Se encontraron ${devolucionesPrevias.length} devoluciones previas para el folio ${folio}. Aplicando descuento...`);
-      
-      ticketObj.items = ticketObj.items.map(itemOriginal => {
-        let cantidadDevueltaAcumulada = 0;
-        
-        devolucionesPrevias.forEach(dev => {
-          if (Array.isArray(dev.items)) {
-            dev.items.forEach(itemDev => {
-              if (itemDev.codigoBarras === itemOriginal.codigoBarras || itemDev.idProducto === itemOriginal.idProducto) {
-                cantidadDevueltaAcumulada += (itemDev.cantidad || 0);
-              }
-            });
-          }
-        });
-
-        const cantidadRestante = Math.max(0, itemOriginal.cantidad - cantidadDevueltaAcumulada);
-        console.log(`- Producto [${itemOriginal.nombre}]: Comprado=${itemOriginal.cantidad}, Ya devuelto=${cantidadDevueltaAcumulada}, Disponible para devolver=${cantidadRestante}`);
-
-        return {
-          ...itemOriginal,
-          cantidad: cantidadRestante, // Sobrescribimos con el saldo real disponible
-          cantidadComprada: cantidadRestante, // Sincronizado para el modelo de la app
-          cantidadYaDevuelta: cantidadDevueltaAcumulada
-        };
-      });
-    }
-
-    console.log(`>>> [BUSCAR TICKET] ¡Ticket procesado con éxito! Folio: ${ticketObj.folioTicket}`);
+    const ticketProcesado = await aplicarEcuacionAntifraude(tenantId, ticketVenta);
+    console.log(`>>> [BUSCAR TICKET] ¡Ticket procesado con éxito! Folio: ${ticketProcesado.folioTicket}`);
+    
     routerRes.json({ 
       exito: true, 
-      data: ticketObj 
+      data: ticketProcesado 
     });
   } catch (error) {
     console.error('>>> [ERROR AL BUSCAR TICKET]:', error);
@@ -160,7 +162,7 @@ router.get('/ticket/:tenantId/:folio', async (routerReq, routerRes) => {
 });
 
 // =========================================================================
-// GET: Consultar ventas/tickets por un rango de fechas normalizado
+// GET: Consultar ventas/tickets por un rango de fechas (CON ANTIFRAUDE INTEGRADO)
 // =========================================================================
 router.get('/rango-fechas/:tenantId', async (routerReq, routerRes) => {
   try {
@@ -176,7 +178,6 @@ router.get('/rango-fechas/:tenantId', async (routerReq, routerRes) => {
       });
     }
 
-    // Consultamos en MongoDB los movimientos tipo 'venta' dentro del rango de fechas
     const ticketsEncontrados = await Movimiento.find({
       tenantId: tenantId.trim().toLowerCase(),
       tipoMovimiento: 'venta',
@@ -186,11 +187,18 @@ router.get('/rango-fechas/:tenantId', async (routerReq, routerRes) => {
       }
     }).sort({ fechaEmision: -1 });
 
-    console.log(`>>> [RANGO FECHAS] Se encontraron ${ticketsEncontrados.length} tickets en el rango.`);
+    console.log(`>>> [RANGO FECHAS] Se encontraron ${ticketsEncontrados.length} tickets base. Aplicando ecuación antifraude...`);
+
+    // Procesamos cada ticket de la lista para descontar sus devoluciones previas
+    const ticketsProcesados = [];
+    for (let ticket of ticketsEncontrados) {
+      const ticketConDescuento = await aplicarEcuacionAntifraude(tenantId, ticket);
+      ticketsProcesados.push(ticketConDescuento);
+    }
 
     routerRes.json({ 
       exito: true, 
-      data: ticketsEncontrados 
+      data: ticketsProcesados 
     });
   } catch (error) {
     console.error('>>> [ERROR AL CONSULTAR RANGO DE FECHAS]:', error);
