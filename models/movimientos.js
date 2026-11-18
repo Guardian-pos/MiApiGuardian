@@ -4,17 +4,22 @@ const MovimientoSchema = new mongoose.Schema({
   tenantId: { type: String, required: true }, // Numero de Cliente
   terminalId: { type: String, required: true }, // Identificador único o prefijo de la tableta (ej. T1, T2, etc.)
   
+  // ➔ Huella digital obligatoria del operador para auditoría y cortes de caja por usuario
+  usuarioId: { type: String, required: true },
+  nombreUsuario: { type: String, required: true },
+  rolUsuario: { type: String, required: true, default: 'empleado' },
+
   tipoMovimiento: { 
     type: String, 
     required: true, 
-    enum: ['venta', 'devolucion', 'entrada_caja', 'salida_caja', 'corte_caja'] 
+    enum: ['venta', 'devolucion', 'devolucion_cuarentena', 'entrada_caja', 'salida_caja', 'corte_caja'] 
   },
   
   // Campos para Ventas y Devoluciones (Obligatorio SOLO si es venta o devolución)
   folioTicket: { 
     type: String, 
     required: function() {
-      return this.tipoMovimiento === 'venta' || this.tipoMovimiento === 'devolucion';
+      return this.tipoMovimiento === 'venta' || this.tipoMovimiento === 'devolucion' || this.tipoMovimiento === 'devolucion_cuarentena';
     }, 
     unique: false 
   }, // Ej. T1-000142 (Único por terminal)
@@ -46,13 +51,11 @@ const MovimientoSchema = new mongoose.Schema({
   totalEntradas: { type: Number },
   totalSalidas: { type: Number },
   diferencia: { type: Number },
-  // totalRecargas: { type: Number, default: 0 },
-  // totalServicios: { type: Number, default: 0 },
   
   fechaEmision: { type: Date, default: Date.now }
 });
 
-// Índice compuesto indispensable para aislar por sucursal y ordenar eficientemente en un futuro con miles de clientes
-MovimientoSchema.index({ tenantId: 1, fechaEmision: -1 });
+// Índice compuesto optimizado por sucursal, usuario y fecha
+MovimientoSchema.index({ tenantId: 1, usuarioId: 1, fechaEmision: -1 });
 
 module.exports = mongoose.model('Movimiento', MovimientoSchema);
