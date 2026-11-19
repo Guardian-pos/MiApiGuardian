@@ -14,6 +14,11 @@ const MovimientoSchema = new mongoose.Schema({
     required: true, 
     enum: ['venta', 'devolucion', 'devolucion_cuarentena', 'entrada_caja', 'salida_caja', 'corte_caja'] 
   },
+
+  // [CAMBIO] Control de turno abierto/cerrado para aislar movimientos hasta ejecutar el corte de caja
+  abierto: { type: Boolean, default: true }, // true = pendiente de cierre en turno actual; false = ya cerrado en corte
+  corteId: { type: String, default: null },    // [CAMBIO] Folio o ID del corte de caja que cerró este movimiento
+  fechaCorte: { type: Date, default: null },   // [CAMBIO] Fecha/hora en que se ejecutó el corte de caja
   
   // Campos para Ventas y Devoluciones (Obligatorio SOLO si es venta o devolución)
   folioTicket: { 
@@ -35,7 +40,7 @@ const MovimientoSchema = new mongoose.Schema({
     nombre: { type: String },
     cantidad: { type: Number },
     precioUnitario: { type: Number },
-    tipoPrecioAplicado: { type: String, enum: ['REGULAR', 'HORARIO', 'PROMOCION'], default: 'REGULAR' },
+    tipoPrecioAplicado: { type: String, enum: ['REGULAR', 'HORARIO', 'PROMOCION', 'SERVICIO'], default: 'REGULAR' }, // [CAMBIO] Se agrega 'SERVICIO' para evitar rechazo en validación de Mongoose
     subtotal: { type: Number },
     costoUnitario: { type: Number }
   }],
@@ -46,8 +51,10 @@ const MovimientoSchema = new mongoose.Schema({
   esIngreso: { type: Boolean },
   
   // Campos específicos para Cierre de Caja
+  fechaInicioTurno: { type: Date }, // [CAMBIO] Inicio del turno/periodo que abarca el cierre
   efectivoContado: { type: Number },
   ventasTotalesSistema: { type: Number },
+  totalDevoluciones: { type: Number }, // [CAMBIO] Monto total de devoluciones del turno
   totalEntradas: { type: Number },
   totalSalidas: { type: Number },
   diferencia: { type: Number },
@@ -57,5 +64,7 @@ const MovimientoSchema = new mongoose.Schema({
 
 // Índice compuesto optimizado por sucursal, usuario y fecha
 MovimientoSchema.index({ tenantId: 1, usuarioId: 1, fechaEmision: -1 });
+// [CAMBIO] Índice adicional para filtrar rápidamente movimientos abiertos del turno actual por cajero
+MovimientoSchema.index({ tenantId: 1, usuarioId: 1, abierto: 1, fechaEmision: -1 });
 
 module.exports = mongoose.model('Movimiento', MovimientoSchema);

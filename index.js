@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' })); // [CAMBIO] Margen seguro para payloads de ventas/movimientos
 
 // Servir archivos estáticos de la carpeta public
 app.use(express.static('public'));
@@ -35,7 +35,7 @@ app.use('/api/movimientos', movimientosRutas);
 
 // Ruta de prueba inicial
 app.get('/', (req, res) => {
-    res.json({ mensaje: "¡Bienvenido al Panel y Servidor de Licencias de Guarián POS!" });
+    res.json({ mensaje: "¡Bienvenido al Panel y Servidor de Licencias de Guardián POS!" }); // [CAMBIO] Nombre corregido
 });
 
 // Inicializar tareas automáticas (Cron Job)
@@ -43,6 +43,11 @@ require('./jobs/expiracionCron');
 
 // Conexión a MongoDB Atlas
 const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+    console.error("Error: MONGO_URI no está configurada en las variables de entorno."); // [CAMBIO] Validación temprana de variable de entorno
+    process.exit(1);
+}
 
 mongoose.connect(MONGO_URI)
     .then(() => {
