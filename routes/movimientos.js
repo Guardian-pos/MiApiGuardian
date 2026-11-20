@@ -79,6 +79,11 @@ async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuar
 
   const htmlCorreo = `
     <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; color: #1F2937; border: 1px solid #E5E7EB; border-radius: 8px;">
+      <!-- [CAMBIO] Espacio reservado para integrar el logotipo más adelante:
+      <div style="text-align: center; margin-bottom: 12px;">
+        <img src="URL_DEL_LOGOTIPO" alt="Logo" style="max-height: 60px;" />
+      </div>
+      -->
       <h2 style="margin: 0 0 6px 0; color: #C2410C;">Reporte de Corte de Caja — ${nombreNegocio}</h2>
       <p style="margin: 0 0 16px 0; font-size: 13px; color: #4B5563;">
         Cliente / Sucursal: <strong>${cleanTenantId.toUpperCase()}</strong> | Folio de corte: <strong>${documentoCorte.corteId}</strong>
@@ -133,7 +138,7 @@ async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuar
 
       <div style="background: #FEF2F2; border: 1px solid #FCA5A5; border-left: 5px solid #DC2626; padding: 12px 14px; border-radius: 6px; margin-bottom: 18px;">
         <div style="color: #DC2626; font-weight: bold; font-size: 14px;">
-          FOLIOS EN CUARENTENA PENDIENTES DE CONFIRMACIÓN PARA REINGRESO A INVENTARIO (Visita tu panel en la web para poder reintegrarlos):
+          FOLIOS EN CUARENTENA PENDIENTES DE CONFIRMACIÓN PARA REINGRESO A INVENTARIO (Visita tu panel web para realizar el reingreso.):
         </div>
         ${listaCuarentenaHtml}
       </div>
@@ -147,7 +152,7 @@ async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuar
   const { error } = await resend.emails.send({
     from: 'Guardián POS <soporte@guardianpos.mx>',
     to: [correoDestino],
-    subject: `Corte de Caja ${documentoCorte.corteId} - ${nombreNegocio}`,
+    subject: `${nombreNegocio} - Cierre de Caja Actual`, // [CAMBIO] Nombre del negocio seguido de "Cierre de Caja Actual"
     html: htmlCorreo,
   });
 
