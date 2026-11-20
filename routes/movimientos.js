@@ -1,7 +1,164 @@
 const express = require('express');
 const router = express.Router();
+const { Resend } = require('resend'); // [CAMBIO] Cliente Resend para enviar reporte del corte de caja
 const Movimiento = require('../models/movimientos');
-const Producto = require('../models/Product'); 
+const Producto = require('../models/Product');
+const Licencia = require('../models/Licencia'); // [CAMBIO] Modelo Licencia para obtener correo y nombre del negocio
+
+// [CAMBIO] Inicialización de Resend usando la variable de entorno RESEND_API_KEY
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// [CAMBIO] Helper para formatear fechas de inicio y cierre en zona horaria de México
+function formatearFechaMexico(fechaValor) {
+  try {
+    const fecha = fechaValor instanceof Date ? fechaValor : new Date(fechaValor);
+    if (Number.isNaN(fecha.getTime())) return 'N/D';
+    return fecha.toLocaleString('es-MX', {
+      timeZone: 'America/Mexico_City',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch (_) {
+    return 'N/D';
+  }
+}
+
+// [CAMBIO] Helper para formatear moneda en MXN
+function formatearMoneda(valor) {
+  const num = Number(valor || 0);
+  return `$${num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// [CAMBIO] Envía el correo con el resumen del corte y los folios en cuarentena resaltados en rojo
+async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuarentena }) {
+  if (!resend) {
+    console.warn('>>> [CORREO CORTE] RESEND_API_KEY no configurada; se omite el envío de correo.');
+    return { enviado: false, motivo: 'RESEND_API_KEY no configurada' };
+  }
+
+  const regexTenant = new RegExp(`^${cleanTenantId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  const licencia = await Licencia.findOne({ 'client.numero_cliente': regexTenant });
+
+  const correoDestino = licencia?.client?.correo ? String(licencia.client.correo).trim() : '';
+  if (!correoDestino) {
+    console.warn(`>>> [CORREO CORTE] No se encontró correo registrado para el tenant [${cleanTenantId}].`);
+    return { enviado: false, motivo: 'Sin correo registrado en licencia' };
+  }
+
+  const nombreNegocio = licencia?.client?.nombre_negocio
+    ? String(licencia.client.nombre_negocio).trim()
+    : cleanTenantId.toUpperCase();
+
+  const ventasSistema = Number(documentoCorte.ventasTotalesSistema || 0);
+  const devoluciones = Number(documentoCorte.totalDevoluciones || 0);
+  const entradas = Number(documentoCorte.totalEntradas || 0);
+  const salidas = Number(documentoCorte.totalSalidas || 0);
+  const efectivoEsperado = ventasSistema - devoluciones - salidas + entradas;
+  const efectivoContado = Number(documentoCorte.efectivoContado || 0);
+  const diferencia =
+    documentoCorte.diferencia !== undefined && documentoCorte.diferencia !== null
+      ? Number(documentoCorte.diferencia)
+      : efectivoContado - efectivoEsperado;
+
+  const inicioStr = formatearFechaMexico(documentoCorte.fechaInicioTurno);
+  const cierreStr = formatearFechaMexico(documentoCorte.fechaCorte || documentoCorte.fechaEmision);
+
+  const listaCuarentenaHtml =
+    Array.isArray(foliosCuarentena) && foliosCuarentena.length > 0
+      ? `<ul style="margin: 8px 0 0 18px; padding: 0;">${foliosCuarentena
+          .map(
+            (q) =>
+              `<li style="color: #B91C1C; font-weight: bold; margin-bottom: 4px;">Folio: ${q.folioTicket || 'Sin folio'} — Monto: ${formatearMoneda(q.totalDevolucion)} (Operador: ${q.nombreUsuario || 'N/D'})</li>`
+          )
+          .join('')}</ul>`
+      : `<p style="margin: 6px 0 0 0; color: #374151;">Sin folios en cuarentena pendientes de confirmación en este corte.</p>`;
+
+  const htmlCorreo = `
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; color: #1F2937; border: 1px solid #E5E7EB; border-radius: 8px;">
+      <h2 style="margin: 0 0 6px 0; color: #C2410C;">Reporte de Corte de Caja — ${nombreNegocio}</h2>
+      <p style="margin: 0 0 16px 0; font-size: 13px; color: #4B5563;">
+        Cliente / Sucursal: <strong>${cleanTenantId.toUpperCase()}</strong> | Folio de corte: <strong>${documentoCorte.corteId}</strong>
+      </p>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;">
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Cajero y rol:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${documentoCorte.nombreUsuario} (${documentoCorte.rolUsuario || 'empleado'})</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Terminal:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${documentoCorte.terminalId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Inicio de turno:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${inicioStr}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Cierre de turno:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${cierreStr}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Ventas:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(ventasSistema)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Devoluciones:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(devoluciones)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Entradas:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(entradas)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Salidas:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(salidas)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Efectivo esperado:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>${formatearMoneda(efectivoEsperado)}</strong></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Efectivo contado:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>${formatearMoneda(efectivoContado)}</strong></td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Diferencia:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>${formatearMoneda(diferencia)}</strong></td>
+        </tr>
+      </table>
+
+      <div style="background: #FEF2F2; border: 1px solid #FCA5A5; border-left: 5px solid #DC2626; padding: 12px 14px; border-radius: 6px; margin-bottom: 18px;">
+        <div style="color: #DC2626; font-weight: bold; font-size: 14px;">
+          FOLIOS EN CUARENTENA PENDIENTES DE CONFIRMACIÓN PARA REINGRESO A INVENTARIO:
+        </div>
+        ${listaCuarentenaHtml}
+      </div>
+
+      <p style="margin: 16px 0 0 0; font-size: 13px; color: #4B5563;">
+        Este cierre de caja llega por cortesía de <strong>Guardián POS</strong>. ¡Gracias por operar con nosotros!
+      </p>
+    </div>
+  `;
+
+  const { error } = await resend.emails.send({
+    from: 'Guardián POS <soporte@guardianpos.mx>',
+    to: [correoDestino],
+    subject: `Corte de Caja ${documentoCorte.corteId} - ${nombreNegocio}`,
+    html: htmlCorreo,
+  });
+
+  if (error) {
+    console.error('>>> [CORREO CORTE] Error devuelto por Resend:', error);
+    return { enviado: false, motivo: error.message || 'Error en Resend' };
+  }
+
+  console.log(`>>> [CORREO CORTE] Correo enviado exitosamente a ${correoDestino} para corte ${documentoCorte.corteId}`);
+  return { enviado: true, destino: correoDestino };
+}
 
 // POST: Registrar movimiento financiero (Ventas, Devoluciones, Cuarentena, Entradas/Salidas y Corte) asociados a un usuario
 router.post('/', async (routerReq, routerRes) => {
@@ -173,11 +330,38 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
 
     await documentoCorte.save();
 
+    // [CAMBIO] Obtiene los folios en cuarentena cerrados en este corte (o pendientes por confirmar) para el correo
+    let foliosCuarentena = await Movimiento.find({
+      tenantId: cleanTenantId,
+      tipoMovimiento: 'devolucion_cuarentena',
+      corteId: corteId
+    }).sort({ fechaEmision: -1 });
+
+    if (!foliosCuarentena || foliosCuarentena.length === 0) {
+      foliosCuarentena = await Movimiento.find({
+        tenantId: cleanTenantId,
+        tipoMovimiento: 'devolucion_cuarentena',
+        abierto: false
+      }).sort({ fechaEmision: -1 }).limit(20);
+    }
+
+    let resultadoCorreo = { enviado: false };
+    try {
+      resultadoCorreo = await enviarCorreoCorteCaja({
+        cleanTenantId,
+        documentoCorte,
+        foliosCuarentena,
+      });
+    } catch (correoErr) {
+      console.error('>>> [CORREO CORTE] Excepción al disparar correo:', correoErr);
+    }
+
     routerRes.status(200).json({
       exito: true,
       mensaje: 'Corte de caja registrado y movimientos del turno marcados como cerrados',
       corteId,
       movimientosCerrados: resultadoCierre.modifiedCount || 0,
+      correoEnviado: resultadoCorreo.enviado === true, // [CAMBIO] Indica si se disparó el correo vía Resend
       data: documentoCorte
     });
   } catch (error) {
