@@ -19,6 +19,9 @@ const MovimientoSchema = new mongoose.Schema({
   abierto: { type: Boolean, default: true }, // true = pendiente de cierre en turno actual; false = ya cerrado en corte
   corteId: { type: String, default: null },    // [CAMBIO] Folio o ID del corte de caja que cerró este movimiento
   fechaCorte: { type: Date, default: null },   // [CAMBIO] Fecha/hora en que se ejecutó el corte de caja
+
+  // [CAMBIO] Estado independiente para devoluciones retenidas en cuarentena hasta confirmación/reingreso en panel web
+  cuarentena: { type: Boolean, default: false }, // true = pendiente de revisión/reingreso en panel web; false = resuelto o no aplica
   
   // Campos para Ventas y Devoluciones (Obligatorio SOLO si es venta o devolución)
   folioTicket: { 
@@ -66,5 +69,7 @@ const MovimientoSchema = new mongoose.Schema({
 MovimientoSchema.index({ tenantId: 1, usuarioId: 1, fechaEmision: -1 });
 // [CAMBIO] Índice adicional para filtrar rápidamente movimientos abiertos del turno actual por cajero
 MovimientoSchema.index({ tenantId: 1, usuarioId: 1, abierto: 1, fechaEmision: -1 });
+// [CAMBIO] Índice para contar y consultar rápidamente folios pendientes en cuarentena por sucursal
+MovimientoSchema.index({ tenantId: 1, tipoMovimiento: 1, cuarentena: 1, fechaEmision: -1 });
 
 module.exports = mongoose.model('Movimiento', MovimientoSchema);

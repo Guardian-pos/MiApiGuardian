@@ -33,8 +33,13 @@ function formatearMoneda(valor) {
   return `$${num.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// [CAMBIO] Envía el correo con el resumen del corte y los folios en cuarentena resaltados en rojo
-async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuarentena }) {
+// [CAMBIO] Envía el correo con el resumen del corte, contador acumulado en cuarentena y folios del corte actual
+async function enviarCorreoCorteCaja({
+  cleanTenantId,
+  documentoCorte,
+  foliosCuarentenaCorte,
+  totalPendientesCuarentena,
+}) {
   if (!resend) {
     console.warn('>>> [CORREO CORTE] RESEND_API_KEY no configurada; se omite el envío de correo.');
     return { enviado: false, motivo: 'RESEND_API_KEY no configurada' };
@@ -67,15 +72,21 @@ async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuar
   const inicioStr = formatearFechaMexico(documentoCorte.fechaInicioTurno);
   const cierreStr = formatearFechaMexico(documentoCorte.fechaCorte || documentoCorte.fechaEmision);
 
+  const acumuladosNum = Number(totalPendientesCuarentena || 0);
+  const textoContadorPendientes =
+    acumuladosNum === 1
+      ? 'Tienes 1 folio pendiente de revisión en cuarentena en tu sucursal.'
+      : `Tienes ${acumuladosNum} folios pendientes de revisión en cuarentena en tu sucursal.`;
+
   const listaCuarentenaHtml =
-    Array.isArray(foliosCuarentena) && foliosCuarentena.length > 0
-      ? `<ul style="margin: 8px 0 0 18px; padding: 0;">${foliosCuarentena
+    Array.isArray(foliosCuarentenaCorte) && foliosCuarentenaCorte.length > 0
+      ? `<ul style="margin: 8px 0 0 18px; padding: 0;">${foliosCuarentenaCorte
           .map(
             (q) =>
               `<li style="color: #B91C1C; font-weight: bold; margin-bottom: 4px;">Folio: ${q.folioTicket || 'Sin folio'} — Monto: ${formatearMoneda(q.totalDevolucion)} (Operador: ${q.nombreUsuario || 'N/D'})</li>`
           )
           .join('')}</ul>`
-      : `<p style="margin: 6px 0 0 0; color: #374151;">Sin folios en cuarentena pendientes de confirmación en este corte.</p>`;
+      : `<p style="margin: 6px 0 0 0; color: #374151;">Sin devoluciones en cuarentena registradas en este corte.</p>`;
 
   const htmlCorreo = `
     <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; color: #1F2937; border: 1px solid #E5E7EB; border-radius: 8px;">
@@ -137,8 +148,11 @@ async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuar
       </table>
 
       <div style="background: #FEF2F2; border: 1px solid #FCA5A5; border-left: 5px solid #DC2626; padding: 12px 14px; border-radius: 6px; margin-bottom: 18px;">
-        <div style="color: #DC2626; font-weight: bold; font-size: 14px;">
-          FOLIOS EN CUARENTENA PENDIENTES DE CONFIRMACIÓN PARA REINGRESO A INVENTARIO (Visita tu panel web para realizar el reingreso.):
+        <div style="color: #991B1B; font-weight: bold; font-size: 14px; margin-bottom: 6px;">
+          ${textoContadorPendientes}
+        </div>
+        <div style="color: #DC2626; font-weight: bold; font-size: 13px;">
+          FOLIOS EN CUARENTENA DE ESTE CORTE (Visita tu panel web para revisar y realizar el reingreso a inventario):
         </div>
         ${listaCuarentenaHtml}
       </div>
@@ -238,6 +252,7 @@ router.post('/', async (routerReq, routerRes) => {
     // 3. Guardar el movimiento en la base de datos con la huella digital completa y estado de turno
     console.log('>>> [DB] Guardando el documento del movimiento para el operador:', nombreUsuario);
     const esCorte = tipoMovimiento === 'corte_caja'; // [CAMBIO] Un corte_caja nace cerrado; movimientos operativos nacen abiertos
+    const esCuarentena = tipoMovimiento === 'devolucion_cuarentena'; // [CAMBIO] Estado independiente de cuarentena para revisión en panel web
     const nuevoMovimiento = new Movimiento({
       ...routerReq.body,
       tenantId: cleanTenantId,
@@ -245,6 +260,7 @@ router.post('/', async (routerReq, routerRes) => {
       nombreUsuario: String(nombreUsuario).trim(),
       rolUsuario: rolUsuario ? String(rolUsuario).trim() : 'empleado',
       abierto: esCorte ? false : (routerReq.body.abierto !== undefined ? Boolean(routerReq.body.abierto) : true),
+      cuarentena: esCuarentena ? true : false,
     });
     await nuevoMovimiento.save();
     console.log('>>> [ÉXITO] Movimiento guardado correctamente en la colección con su respectivo usuario.');
@@ -296,7 +312,7 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
     const fechaCierre = new Date();
     const corteId = `CORTE-${cleanUsuarioId}-${fechaCierre.getTime()}`;
 
-    // [CAMBIO] Cierra únicamente los movimientos abiertos de este tenant y este cajero en turno
+    // [CAMBIO] Cierra únicamente los movimientos abiertos de este tenant y este cajero en turno (sin tocar 'cuarentena')
     const resultadoCierre = await Movimiento.updateMany(
       {
         tenantId: cleanTenantId,
@@ -321,6 +337,7 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
       rolUsuario: rolUsuario ? String(rolUsuario).trim() : 'empleado',
       tipoMovimiento: 'corte_caja',
       abierto: false,
+      cuarentena: false,
       corteId,
       fechaCorte: fechaCierre,
       fechaInicioTurno: fechaInicioTurno ? new Date(fechaInicioTurno) : fechaCierre,
@@ -335,27 +352,27 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
 
     await documentoCorte.save();
 
-    // [CAMBIO] Obtiene los folios en cuarentena cerrados en este corte (o pendientes por confirmar) para el correo
-    let foliosCuarentena = await Movimiento.find({
+    // [CAMBIO] Folios en cuarentena pertenecientes exclusivamente a este corte actual
+    const foliosCuarentenaCorte = await Movimiento.find({
       tenantId: cleanTenantId,
       tipoMovimiento: 'devolucion_cuarentena',
       corteId: corteId
     }).sort({ fechaEmision: -1 });
 
-    if (!foliosCuarentena || foliosCuarentena.length === 0) {
-      foliosCuarentena = await Movimiento.find({
-        tenantId: cleanTenantId,
-        tipoMovimiento: 'devolucion_cuarentena',
-        abierto: false
-      }).sort({ fechaEmision: -1 }).limit(20);
-    }
+    // [CAMBIO] Contador acumulado total de folios pendientes en cuarentena (cuarentena: true) en la sucursal
+    const totalPendientesCuarentena = await Movimiento.countDocuments({
+      tenantId: cleanTenantId,
+      tipoMovimiento: 'devolucion_cuarentena',
+      cuarentena: true
+    });
 
     let resultadoCorreo = { enviado: false };
     try {
       resultadoCorreo = await enviarCorreoCorteCaja({
         cleanTenantId,
         documentoCorte,
-        foliosCuarentena,
+        foliosCuarentenaCorte,
+        totalPendientesCuarentena,
       });
     } catch (correoErr) {
       console.error('>>> [CORREO CORTE] Excepción al disparar correo:', correoErr);
@@ -366,6 +383,7 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
       mensaje: 'Corte de caja registrado y movimientos del turno marcados como cerrados',
       corteId,
       movimientosCerrados: resultadoCierre.modifiedCount || 0,
+      totalPendientesCuarentena,
       correoEnviado: resultadoCorreo.enviado === true, // [CAMBIO] Indica si se disparó el correo vía Resend
       data: documentoCorte
     });
