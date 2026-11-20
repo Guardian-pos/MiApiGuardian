@@ -379,41 +379,70 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
 });
 
 // =========================================================================
-// FUNCIÓN AUXILIAR: Ecuación Antifraude (Resta devoluciones previas a un ticket)
+// FUNCIÓN AUXILIAR: Ecuación Antifraude + Estado de Devolución (Verde / Naranja / Rojo)
 // =========================================================================
 async function aplicarEcuacionAntifraude(tenantId, ticketVenta) {
   let ticketObj = ticketVenta.toObject ? ticketVenta.toObject() : { ...ticketVenta };
-  
-  const devolucionesPrevias = await Movimiento.find({ 
-    tenantId: tenantId.trim().toLowerCase(), 
+  const itemsOriginales = Array.isArray(ticketObj.items) ? ticketObj.items : [];
+
+  let totalOriginalPiezas = 0;
+  let totalRestantePiezas = 0;
+  let totalDevueltoPiezas = 0;
+
+  const devolucionesPrevias = await Movimiento.find({
+    tenantId: tenantId.trim().toLowerCase(),
     folioTicket: ticketObj.folioTicket.trim(),
     tipoMovimiento: { $in: ['devolucion', 'devolucion_cuarentena'] }
   });
 
-  if (devolucionesPrevias && devolucionesPrevias.length > 0) {
-    ticketObj.items = ticketObj.items.map(itemOriginal => {
-      let cantidadDevueltaAcumulada = 0;
-      
+  const tieneDevolucionesPrevias = Array.isArray(devolucionesPrevias) && devolucionesPrevias.length > 0;
+
+  ticketObj.items = itemsOriginales.map(itemOriginal => {
+    const cantOriginal = Number(itemOriginal.cantidad || 0);
+    totalOriginalPiezas += cantOriginal;
+
+    let cantidadDevueltaAcumulada = 0;
+    if (tieneDevolucionesPrevias) {
       devolucionesPrevias.forEach(dev => {
         if (Array.isArray(dev.items)) {
           dev.items.forEach(itemDev => {
-            if (itemDev.codigoBarras === itemOriginal.codigoBarras || itemDev.idProducto === itemOriginal.idProducto) {
-              cantidadDevueltaAcumulada += (itemDev.cantidad || 0);
+            if (
+              (itemDev.codigoBarras && itemDev.codigoBarras === itemOriginal.codigoBarras) ||
+              (itemDev.idProducto && itemDev.idProducto === itemOriginal.idProducto)
+            ) {
+              cantidadDevueltaAcumulada += Number(itemDev.cantidad || 0);
             }
           });
         }
       });
+    }
 
-      const cantidadRestante = Math.max(0, itemOriginal.cantidad - cantidadDevueltaAcumulada);
+    const cantidadRestante = Math.max(0, cantOriginal - cantidadDevueltaAcumulada);
+    totalRestantePiezas += cantidadRestante;
+    totalDevueltoPiezas += Math.min(cantOriginal, cantidadDevueltaAcumulada);
 
-      return {
-        ...itemOriginal,
-        cantidad: cantidadRestante,
-        cantidadComprada: cantidadRestante,
-        cantidadYaDevuelta: cantidadDevueltaAcumulada
-      };
-    });
+    return {
+      ...itemOriginal,
+      cantidad: cantidadRestante,
+      cantidadComprada: cantidadRestante,
+      cantidadOriginal: cantOriginal,
+      cantidadYaDevuelta: cantidadDevueltaAcumulada
+    };
+  });
+
+  // [CAMBIO] Determina estadoDevolucion para el semáforo en Flutter:
+  // 'completo' (Rojo) | 'parcial' (Naranja/Amarillo) | 'sin_devolucion' (Verde)
+  let estadoDevolucion = 'sin_devolucion';
+  if (totalOriginalPiezas > 0 && totalRestantePiezas <= 0) {
+    estadoDevolucion = 'completo';
+  } else if (totalDevueltoPiezas > 0 || (tieneDevolucionesPrevias && totalRestantePiezas < totalOriginalPiezas)) {
+    estadoDevolucion = 'parcial';
   }
+
+  ticketObj.estadoDevolucion = estadoDevolucion;
+  ticketObj.totalOriginalPiezas = totalOriginalPiezas;
+  ticketObj.totalRestantePiezas = totalRestantePiezas;
+
   return ticketObj;
 }
 
