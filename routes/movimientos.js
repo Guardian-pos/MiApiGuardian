@@ -133,7 +133,7 @@ async function enviarCorreoCorteCaja({ cleanTenantId, documentoCorte, foliosCuar
 
       <div style="background: #FEF2F2; border: 1px solid #FCA5A5; border-left: 5px solid #DC2626; padding: 12px 14px; border-radius: 6px; margin-bottom: 18px;">
         <div style="color: #DC2626; font-weight: bold; font-size: 14px;">
-          FOLIOS EN CUARENTENA PENDIENTES DE CONFIRMACIÓN PARA REINGRESO A INVENTARIO:
+          FOLIOS EN CUARENTENA PENDIENTES DE CONFIRMACIÓN PARA REINGRESO A INVENTARIO (Visita tu panel en la web para poder reintegrarlos):
         </div>
         ${listaCuarentenaHtml}
       </div>
