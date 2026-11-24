@@ -1,3 +1,8 @@
+// [CAMBIO] URL base automática: relativa si ya corre en admin.guardianpos.mx, o absoluta si se abre desde otro origen
+const API_BASE = window.location.hostname === 'admin.guardianpos.mx'
+  ? ''
+  : 'https://admin.guardianpos.mx';
+
 let listaGlobalLicencias = [];
 let listaGlobalEmpleados = [];
 let sesionActual = null;
@@ -51,7 +56,7 @@ async function realizarLogin() {
   }
 
   try {
-    const response = await fetch('/api/empleados/login', {
+    const response = await fetch(`${API_BASE}/api/empleados/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuarioId, password }),
@@ -86,13 +91,13 @@ function cerrarSesion() {
 
 async function inicializarPanel() {
   try {
-    const respLic = await fetch('/api/licencias');
+    const respLic = await fetch(`${API_BASE}/api/licencias`);
     listaGlobalLicencias = await respLic.json();
     actualizarKpisLicencias();
     poblarSelectorClientesTokens();
 
     if (sesionActual && sesionActual.usuarioId === 'EMP-ADMIN') {
-      const respEmp = await fetch('/api/empleados');
+      const respEmp = await fetch(`${API_BASE}/api/empleados`);
       listaGlobalEmpleados = await respEmp.json();
       renderizarTablaEmpleados(listaGlobalEmpleados);
     }
@@ -205,7 +210,7 @@ async function generarNuevaPruebaCortesia() {
   const base = new Date(itemLicenciaSeleccionado.fecha_expiracion) > new Date() ? new Date(itemLicenciaSeleccionado.fecha_expiracion) : new Date();
   base.setDate(base.getDate() + dias);
 
-  const resp = await fetch(`/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
+  const resp = await fetch(`${API_BASE}/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -234,7 +239,7 @@ async function ejecutarRenovacionManual() {
   const base = new Date(itemLicenciaSeleccionado.fecha_expiracion) > new Date() ? new Date(itemLicenciaSeleccionado.fecha_expiracion) : new Date();
   base.setDate(base.getDate() + 30);
 
-  const resp = await fetch(`/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
+  const resp = await fetch(`${API_BASE}/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -275,7 +280,7 @@ async function registrarEmpleado() {
   };
   if (!nombre || !correo) return alert('Ingrese nombre y correo.');
 
-  const resp = await fetch('/api/empleados/crear', {
+  const resp = await fetch(`${API_BASE}/api/empleados/crear`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nombre, correo, permisos }),
@@ -325,7 +330,7 @@ async function guardarEdicionEmpleado() {
     reactivacion: document.getElementById('perm-reactivacion').checked,
     telefonica: document.getElementById('perm-telefonica').checked,
   };
-  const resp = await fetch(`/api/empleados/actualizar/${empleadoEnEdicionId}`, {
+  const resp = await fetch(`${API_BASE}/api/empleados/actualizar/${empleadoEnEdicionId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nombre, correo, permisos }),
@@ -368,7 +373,7 @@ function filtrarEmpleados() {
 
 async function eliminarEmpleado(id) {
   if (!confirm('¿Eliminar a este operador?')) return;
-  const resp = await fetch(`/api/empleados/${id}`, { method: 'DELETE' });
+  const resp = await fetch(`${API_BASE}/api/empleados/${id}`, { method: 'DELETE' });
   if (resp.ok) await inicializarPanel();
 }
 
@@ -436,8 +441,8 @@ async function cargarBilleteraYHistorial() {
 
   try {
     const [respSaldo, respHist] = await Promise.all([
-      fetch(`/api/recargas-servicios/saldo/${encodeURIComponent(tenantId)}`),
-      fetch(`/api/recargas-servicios/historial/${encodeURIComponent(tenantId)}?limite=50`),
+      fetch(`${API_BASE}/api/recargas-servicios/saldo/${encodeURIComponent(tenantId)}`),
+      fetch(`${API_BASE}/api/recargas-servicios/historial/${encodeURIComponent(tenantId)}?limite=50`),
     ]);
 
     const dataSaldo = await respSaldo.json();
@@ -497,7 +502,7 @@ async function abonarTokensCliente() {
   if (adminKey) headers['x-admin-key'] = adminKey;
 
   try {
-    const resp = await fetch('/api/recargas-servicios/abonar', {
+    const resp = await fetch(`${API_BASE}/api/recargas-servicios/abonar`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
