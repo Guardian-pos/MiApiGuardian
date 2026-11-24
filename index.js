@@ -33,9 +33,6 @@ app.use('/api', trialRoutes);
 const movimientosRutas = require('./routes/movimientos');
 app.use('/api/movimientos', movimientosRutas);
 
-// NUEVO: Importar y usar las rutas de movimientos (Ventas, Devoluciones, Caja, Cortes)
-const movimientosRutas = require('./routes/movimientos');
-app.use('/api/movimientos', movimientosRutas);
 
 // [CAMBIO] Rutas independientes para Recargas Electrónicas, Pago de Servicios y Billetera de Tokens
 const recargasServiciosRutas = require('./routes/recargasServicios');
