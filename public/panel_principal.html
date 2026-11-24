@@ -113,6 +113,9 @@
                         <label><input type="checkbox" id="perm-renovacion"> Renovación por Pago Manual</label>
                         <label><input type="checkbox" id="perm-reactivacion"> Reactivación de Hardware</label>
                         <label><input type="checkbox" id="perm-telefonica"> Activación Telefónica / Offline</label>
+                        <label><input type="checkbox" id="perm-tokens"> Gestión y Abono de Tokens</label>
+                        <label><input type="checkbox" id="perm-tareas"> Módulo Tareas</label>
+                        <label><input type="checkbox" id="perm-reportes"> Módulo Reportes</label>
                     </div>
                     <div style="display: flex; gap: 10px; margin-bottom: 18px;">
                         <button id="btn-accion-empleado" class="btn-actualizar" onclick="procesarGuardarEmpleado()">Generar Cuenta de Empleado</button>
@@ -245,101 +248,116 @@
             <div id="vista-tokens" class="vista">
                 <div class="cabecera-metricas">
                     <h2>Billetera de Tokens (Recargas y Servicios)</h2>
-                    <button class="btn-actualizar" onclick="cargarBilleteraYHistorial()">
-                        <i class="bx bx-refresh"></i>
-                        <span>Consultar Saldo</span>
-                    </button>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secundario" onclick="limpiarPantallaTokens()">
+                            <i class="bx bx-eraser"></i> Limpiar Pantalla
+                        </button>
+                        <button class="btn-actualizar" onclick="cargarBilleteraYHistorial()">
+                            <i class="bx bx-refresh"></i>
+                            <span>Consultar Saldo</span>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Selección de cliente / tenantId -->
-                <div class="tarjeta-panel">
-                    <h3>1. Seleccionar Cliente (tenantId)</h3>
-                    <div class="grid-formulario">
-                        <div class="campo-grupo">
-                            <label>Elegir de Clientes Registrados</label>
-                            <select id="tokens-select-cliente" onchange="seleccionarTenantDesdeLista()">
-                                <option value="">-- Seleccionar cliente --</option>
-                            </select>
-                        </div>
-                        <div class="campo-grupo">
-                            <label>O escribir tenantId directo</label>
-                            <input type="text" id="tokens-tenant-input" placeholder="Ej. cli-001">
-                        </div>
-                    </div>
-                    <button class="btn-actualizar" onclick="cargarBilleteraYHistorial()">Cargar Billetera del Cliente</button>
+                <!-- Aviso cuando el empleado no tiene permiso -->
+                <div id="tokens-sin-permiso" class="tarjeta-panel" style="display: none; border-color: #ef4444;">
+                    <h3 style="color: #f87171;">Acceso Restringido</h3>
+                    <p style="color: #e2e8f0; font-size: 14px;">
+                        No tienes permiso para operar este módulo. Si ya te lo asignaron, habla con tu supervisor para que te lo habilite.
+                    </p>
                 </div>
 
-                <!-- Saldos actuales -->
-                <section class="grid-kpis" style="margin-bottom: 20px;">
-                    <div class="tarjeta-kpi">
-                        <div class="kpi-top"><i class="bx bx-mobile-alt"></i><span>Tokens Recargas Electrónicas</span></div>
-                        <h3 id="tokens-saldo-recargas">$0.00</h3>
-                        <p class="kpi-detalle positivo">Bolsa con bono por depósito</p>
+                <div id="tokens-contenido-autorizado">
+                    <!-- Selección de cliente / tenantId -->
+                    <div class="tarjeta-panel">
+                        <h3>1. Seleccionar Cliente (tenantId)</h3>
+                        <div class="grid-formulario">
+                            <div class="campo-grupo">
+                                <label>Elegir de Clientes Registrados</label>
+                                <select id="tokens-select-cliente" onchange="seleccionarTenantDesdeLista()">
+                                    <option value="">-- Seleccionar cliente --</option>
+                                </select>
+                            </div>
+                            <div class="campo-grupo">
+                                <label>O escribir tenantId directo</label>
+                                <input type="text" id="tokens-tenant-input" placeholder="Ej. cli-6895">
+                            </div>
+                        </div>
+                        <button class="btn-actualizar" onclick="cargarBilleteraYHistorial()">Cargar Billetera del Cliente</button>
                     </div>
-                    <div class="tarjeta-kpi">
-                        <div class="kpi-top"><i class="bx bx-receipt"></i><span>Tokens Pago de Servicios</span></div>
-                        <h3 id="tokens-saldo-servicios">$0.00</h3>
-                        <p class="kpi-detalle">Sin bono (tarifa fija por recibo: <span id="tokens-tarifa-fija">$7.00</span>)</p>
-                    </div>
-                </section>
 
-                <!-- Formulario de Abono -->
-                <div class="tarjeta-panel">
-                    <h3>2. Abonar Tokens a <span id="tokens-tenant-activo" style="color: #a78bfa;">--</span></h3>
-                    <div class="grid-formulario">
-                        <div class="campo-grupo">
-                            <label>Bolsa a Abonar</label>
-                            <select id="tokens-bolsa" onchange="actualizarPreviewTokens()">
-                                <option value="RECARGAS">RECARGAS (Con bono porcentual)</option>
-                                <option value="SERVICIOS">SERVICIOS (Sin bono)</option>
-                            </select>
+                    <!-- Saldos actuales -->
+                    <section class="grid-kpis" style="margin-bottom: 20px;">
+                        <div class="tarjeta-kpi">
+                            <div class="kpi-top"><i class="bx bx-mobile-alt"></i><span>Tokens Recargas Electrónicas</span></div>
+                            <h3 id="tokens-saldo-recargas">$0.00</h3>
+                            <p class="kpi-detalle positivo">Bolsa con bono por depósito</p>
                         </div>
-                        <div class="campo-grupo">
-                            <label>Monto del Depósito (MXN)</label>
-                            <input type="number" id="tokens-monto" min="1" step="0.01" placeholder="Ej. 1000" oninput="actualizarPreviewTokens()">
+                        <div class="tarjeta-kpi">
+                            <div class="kpi-top"><i class="bx bx-receipt"></i><span>Tokens Pago de Servicios</span></div>
+                            <h3 id="tokens-saldo-servicios">$0.00</h3>
+                            <p class="kpi-detalle">Sin bono (tarifa fija por recibo: <span id="tokens-tarifa-fija">$7.00</span>)</p>
                         </div>
-                        <div class="campo-grupo" id="tokens-bono-grupo">
-                            <label>Bono (%)</label>
-                            <input type="number" id="tokens-bono-pct" min="0" step="0.1" value="6" oninput="actualizarPreviewTokens()">
-                        </div>
-                        <div class="campo-grupo">
-                            <label>Referencia / Nota (SPEI, folio, etc.)</label>
-                            <input type="text" id="tokens-nota" placeholder="Ej. SPEI-445566">
-                        </div>
-                        <div class="campo-grupo">
-                            <label>Clave Admin (si configuraste ADMIN_TOKENS_KEY)</label>
-                            <input type="password" id="tokens-admin-key" placeholder="Opcional">
-                        </div>
-                    </div>
-                    <div class="preview-tokens" id="tokens-preview-total">
-                        Ingresa un monto para calcular el total de tokens a acreditar.
-                    </div>
-                    <button class="btn-actualizar" onclick="abonarTokensCliente()">
-                        <i class="bx bx-check-circle"></i>
-                        <span>Aprobar y Abonar Tokens</span>
-                    </button>
-                </div>
+                    </section>
 
-                <!-- Historial / Auditoría -->
-                <div class="tarjeta-panel">
-                    <h3>3. Historial y Auditoría de Tokens</h3>
-                    <table class="tabla-oscura">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Bolsa</th>
-                                <th>Tipo</th>
-                                <th>Monto</th>
-                                <th>Bono / Tarifa</th>
-                                <th>Saldo Ant. / Post.</th>
-                                <th>Estado</th>
-                                <th>Referencia</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-historial-tokens">
-                            <tr><td colspan="8" style="text-align: center; color: #a0a0ab;">Selecciona un cliente para ver su historial.</td></tr>
-                        </tbody>
-                    </table>
+                    <!-- Formulario de Abono -->
+                    <div class="tarjeta-panel">
+                        <h3>2. Abonar Tokens a <span id="tokens-tenant-activo" style="color: #a78bfa;">--</span></h3>
+                        <div class="grid-formulario">
+                            <div class="campo-grupo">
+                                <label>Bolsa a Abonar</label>
+                                <select id="tokens-bolsa" onchange="actualizarPreviewTokens()">
+                                    <option value="RECARGAS">RECARGAS (Con bono porcentual)</option>
+                                    <option value="SERVICIOS">SERVICIOS (Sin bono)</option>
+                                </select>
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Monto del Depósito (MXN)</label>
+                                <input type="number" id="tokens-monto" min="1" step="0.01" placeholder="Ej. 1000" oninput="actualizarPreviewTokens()">
+                            </div>
+                            <div class="campo-grupo" id="tokens-bono-grupo">
+                                <label>Bono (%)</label>
+                                <input type="number" id="tokens-bono-pct" min="0" step="0.1" value="6" oninput="actualizarPreviewTokens()">
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Referencia de Pago / SPEI</label>
+                                <input type="text" id="tokens-nota" placeholder="Ej. SPEI-445566">
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Confirmar Número de Cliente (Validación)</label>
+                                <input type="text" id="tokens-confirmar-cliente" placeholder="Ej. CLI-6895">
+                            </div>
+                        </div>
+                        <div class="preview-tokens" id="tokens-preview-total">
+                            Ingresa un monto para calcular el total de tokens a acreditar.
+                        </div>
+                        <button class="btn-actualizar" onclick="abonarTokensCliente()">
+                            <i class="bx bx-check-circle"></i>
+                            <span>Aprobar y Abonar Tokens</span>
+                        </button>
+                    </div>
+
+                    <!-- Historial / Auditoría -->
+                    <div class="tarjeta-panel">
+                        <h3>3. Historial y Auditoría de Tokens</h3>
+                        <table class="tabla-oscura">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Bolsa</th>
+                                    <th>Tipo</th>
+                                    <th>Monto</th>
+                                    <th>Bono / Tarifa</th>
+                                    <th>Saldo Ant. / Post.</th>
+                                    <th>Estado</th>
+                                    <th>Referencia</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-historial-tokens">
+                                <tr><td colspan="8" style="text-align: center; color: #a0a0ab;">Selecciona un cliente para ver su historial.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 

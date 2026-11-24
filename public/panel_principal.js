@@ -123,10 +123,16 @@ function aplicarPermisosOperador() {
   if (!sesionActual) return;
   const esAdmin = sesionActual.usuarioId === 'EMP-ADMIN';
   const p = sesionActual.permisos || {};
+
   document.getElementById('opt-renovacion').style.display = esAdmin || p.renovacion ? 'block' : 'none';
   document.getElementById('opt-reactivacion').style.display = esAdmin || p.reactivacion ? 'block' : 'none';
   document.getElementById('opt-telefonica').style.display = esAdmin || p.telefonica ? 'block' : 'none';
   document.getElementById('bloque-team-admin').style.display = esAdmin ? 'block' : 'none';
+
+  // [CAMBIO] Bloqueo visual del módulo Tokens según permiso del empleado
+  const tieneTokens = esAdmin || !!p.tokens;
+  document.getElementById('tokens-contenido-autorizado').style.display = tieneTokens ? 'block' : 'none';
+  document.getElementById('tokens-sin-permiso').style.display = tieneTokens ? 'none' : 'block';
 }
 
 // =========================================================
@@ -306,6 +312,9 @@ function cargarDatosEdicion(id) {
   document.getElementById('perm-renovacion').checked = !!p.renovacion;
   document.getElementById('perm-reactivacion').checked = !!p.reactivacion;
   document.getElementById('perm-telefonica').checked = !!p.telefonica;
+  document.getElementById('perm-tokens').checked = !!p.tokens;     // [CAMBIO]
+  document.getElementById('perm-tareas').checked = !!p.tareas;     // [CAMBIO]
+  document.getElementById('perm-reportes').checked = !!p.reportes; // [CAMBIO]
   document.getElementById('btn-accion-empleado').innerText = 'Guardar Cambios';
   document.getElementById('btn-cancelar-edicion').style.display = 'inline-block';
 }
@@ -314,7 +323,7 @@ function cancelarEdicionEmpleado() {
   empleadoEnEdicionId = null;
   document.getElementById('emp-nombre').value = '';
   document.getElementById('emp-correo').value = '';
-  ['perm-cortesia', 'perm-renovacion', 'perm-reactivacion', 'perm-telefonica'].forEach((id) => {
+  ['perm-cortesia', 'perm-renovacion', 'perm-reactivacion', 'perm-telefonica', 'perm-tokens', 'perm-tareas', 'perm-reportes'].forEach((id) => { // [CAMBIO]
     document.getElementById(id).checked = false;
   });
   document.getElementById('btn-accion-empleado').innerText = 'Generar Cuenta de Empleado';
@@ -353,7 +362,7 @@ function renderizarTablaEmpleados(empleados) {
       <td>${emp.nombre}</td>
       <td>${emp.correo}</td>
       <td style="font-family:monospace;">${emp.password}</td>
-      <td style="font-size:12px;color:#a0a0ab;">Cort:${p.cortesia ? 'Sí' : 'No'} | Ren:${p.renovacion ? 'Sí' : 'No'}</td>
+      <td style="font-size:12px;color:#a0a0ab;">Cort:${p.cortesia ? 'Sí' : 'No'} | Ren:${p.renovacion ? 'Sí' : 'No'} | Tok:${p.tokens ? 'Sí' : 'No'}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn-exito" onclick="cargarDatosEdicion('${emp._id}')">Editar</button>
         ${emp.usuarioId !== 'EMP-ADMIN' ? `<button class="btn-peligro" onclick="eliminarEmpleado('${emp._id}')">Eliminar</button>` : ''}
@@ -529,4 +538,67 @@ async function abonarTokensCliente() {
     console.error(err);
     alert('Error de conexión al abonar tokens.');
   }
+
+function limpiarPantallaTokens() {
+  document.getElementById('tokens-select-cliente').value = '';
+  document.getElementById('tokens-tenant-input').value = '';
+  document.getElementById('tokens-tenant-activo').textContent = '--';
+  document.getElementById('tokens-saldo-recargas').textContent = '$0.00';
+  document.getElementById('tokens-saldo-servicios').textContent = '$0.00';
+  document.getElementById('tokens-monto').value = '';
+  document.getElementById('tokens-nota').value = '';
+  document.getElementById('tokens-confirmar-cliente').value = '';
+  document.getElementById('tokens-bono-pct').value = '6';
+  document.getElementById('tokens-bolsa').value = 'RECARGAS';
+  document.getElementById('tokens-bono-grupo').style.display = 'block';
+  document.getElementById('tokens-preview-total').textContent = 'Ingresa un monto para calcular el total de tokens a acreditar.';
+  document.getElementById('tabla-historial-tokens').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;color:#a0a0ab;">Selecciona un cliente para ver su historial.</td></tr>';
+}
+
+async function abonarTokensCliente() {
+  const tenantId = document.getElementById('tokens-tenant-input').value.trim().toLowerCase();
+  const confirmarCliente = document.getElementById('tokens-confirmar-cliente').value.trim().toLowerCase();
+  const bolsa = document.getElementById('tokens-bolsa').value;
+  const montoDeposito = Number(document.getElementById('tokens-monto').value);
+  const bonoPorcentaje = bolsa === 'RECARGAS' ? Number(document.getElementById('tokens-bono-pct').value || 0) : 0;
+  const nota = document.getElementById('tokens-nota').value.trim();
+
+  if (!tenantId) return alert('Primero selecciona o escribe el tenantId del cliente.');
+  if (!confirmarCliente || confirmarCliente !== tenantId) {
+    return alert(`El número de cliente confirmado (${confirmarCliente.toUpperCase() || 'vacío'}) no coincide con el cliente seleccionado (${tenantId.toUpperCase()}).`);
+  }
+  if (!montoDeposito || montoDeposito <= 0) return alert('Ingresa un monto de depósito mayor a 0.');
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/recargas-servicios/abonar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenantId,
+        confirmarCliente,
+        bolsa,
+        montoDeposito,
+        bonoPorcentaje,
+        adminId: sesionActual?.usuarioId || '',
+        nombreAdmin: sesionActual?.nombre || 'Administrador',
+        nota,
+      }),
+    });
+    const res = await resp.json();
+    if (res.exito) {
+      const avisoCorreo = res.correoEnviado
+        ? 'Correo de confirmación enviado al cliente.'
+        : 'Abono guardado (el cliente no tiene correo registrado o no se pudo enviar).';
+      alert(`${res.mensaje}\n\n${avisoCorreo}`);
+      limpiarPantallaTokens();
+    } else {
+      alert('Error al abonar: ' + (res.error || 'Desconocido'));
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error de conexión al abonar tokens.');
+  }
+}
+
 }

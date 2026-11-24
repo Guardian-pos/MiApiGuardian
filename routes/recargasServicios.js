@@ -1,11 +1,99 @@
 const express = require('express');
 const router = express.Router();
+const { Resend } = require('resend'); // [CAMBIO]
 const BilleteraTokens = require('../models/BilleteraTokens');
 const HistorialTokens = require('../models/HistorialTokens');
 const Movimiento = require('../models/movimientos');
+const Licencia = require('../models/Licencia'); // [CAMBIO]
+const Empleado = require('../models/Empleado'); // [CAMBIO]
 const proveedorService = require('../services/proveedorRecargasService');
 
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null; // [CAMBIO]
 const TARIFA_SERVICIO_DEFAULT = Number(process.env.TARIFA_FIJA_SERVICIO || 7);
+
+// [CAMBIO] Helpers para correo de abono en horario de México
+function formatearFechaMexico(fechaValor) {
+  const fecha = fechaValor instanceof Date ? fechaValor : new Date(fechaValor);
+  if (Number.isNaN(fecha.getTime())) return 'N/D';
+  return fecha.toLocaleString('es-MX', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatearMoneda(valor) {
+  return `$${Number(valor || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+async function enviarCorreoAbonoTokens({ cleanTenantId, historial, notaReferencia }) {
+  if (!resend) return { enviado: false, motivo: 'RESEND_API_KEY no configurada' };
+
+  const regexTenant = new RegExp(`^${cleanTenantId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  const licencia = await Licencia.findOne({ 'client.numero_cliente': regexTenant });
+
+  const correoDestino = licencia?.client?.correo ? String(licencia.client.correo).trim() : '';
+  if (!correoDestino) return { enviado: false, motivo: 'Cliente sin correo registrado' };
+
+  const nombreNegocio = licencia?.client?.nombre_negocio
+    ? String(licencia.client.nombre_negocio).trim()
+    : cleanTenantId.toUpperCase();
+
+  const fechaStr = formatearFechaMexico(historial.createdAt || new Date());
+  const detalleBono = historial.bolsa === 'RECARGAS'
+    ? `Bono aplicado: ${formatearMoneda(historial.bonoAplicado)}`
+    : `Tarifa fija: ${formatearMoneda(historial.tarifaFija)}`;
+
+  const htmlCorreo = `
+    <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 22px; color: #1F2937; border: 1px solid #E5E7EB; border-radius: 10px;">
+      <div style="border-bottom: 3px solid #7C3AED; padding-bottom: 12px; margin-bottom: 18px;">
+        <h2 style="margin: 0; color: #7C3AED;">Guardián POS — Confirmación de Saldo</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #4B5563;">
+          Cliente: <strong>${cleanTenantId.toUpperCase()}</strong> | Negocio: <strong>${nombreNegocio}</strong>
+        </p>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.5; margin-top: 0;">
+        ¡Hola! Tu saldo ha sido abonado correctamente a tu cuenta. Aquí tienes el reporte de tu compra de saldo:
+      </p>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;">
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Fecha y hora:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${fechaStr}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Bolsa:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${historial.bolsa}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Tipo de movimiento:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${historial.tipo}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Monto depositado:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(historial.montoOperacion)}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Bono / Tarifa:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${detalleBono}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Total acreditado:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>${formatearMoneda(historial.montoTokens)}</strong></td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Saldo anterior:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(historial.saldoAnterior)}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Saldo posterior:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong style="color: #059669;">${formatearMoneda(historial.saldoPosterior)}</strong></td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Estado:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${historial.estado}</td></tr>
+        <tr><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Folio / Referencia:</strong></td><td style="padding: 7px 8px; border-bottom: 1px solid #F3F4F6;">${historial.folioReferencia}${notaReferencia ? ` (${notaReferencia})` : ''}</td></tr>
+      </table>
+
+      <p style="margin: 18px 0 0 0; font-size: 13px; color: #4B5563;">
+        Este correo fue enviado por cortesía de <strong>Guardián POS</strong>. ¡Gracias por seguir trabajando con nosotros!
+      </p>
+    </div>
+  `;
+
+  const { error } = await resend.emails.send({
+    from: 'Guardián POS <soporte@guardianpos.mx>',
+    to: [correoDestino],
+    subject: `${nombreNegocio} - Abono de Saldo Confirmado (Guardián POS)`,
+    html: htmlCorreo,
+  });
+
+  if (error) {
+    console.error('>>> [CORREO TOKENS ERROR]:', error);
+    return { enviado: false, motivo: error.message || 'Error Resend' };
+  }
+
+  return { enviado: true, destino: correoDestino };
+}
 
 function normalizarTenant(tenantId) {
   return String(tenantId || '').trim().toLowerCase();
@@ -69,26 +157,46 @@ router.get('/historial/:tenantId', async (req, res) => {
 });
 
 // =========================================================================
-// POST: Abonar saldo desde el Panel Admin (Recargas con bono % / Servicios sin bono)
+// POST: Abonar saldo desde el Panel Admin (Validación de Empleado + Correo)
 // =========================================================================
 router.post('/abonar', async (req, res) => {
   try {
-    const adminKeyEnv = process.env.ADMIN_TOKENS_KEY;
-    if (adminKeyEnv && req.headers['x-admin-key'] !== adminKeyEnv) {
-      return res.status(401).json({ exito: false, error: 'No autorizado para abonar tokens' });
-    }
-
     const {
       tenantId,
-      bolsa, // 'RECARGAS' | 'SERVICIOS'
+      confirmarCliente, // [CAMBIO] Validación cruzada de número de cliente
+      bolsa,
       montoDeposito,
-      bonoPorcentaje = 0, // Ej. 6 para 6% en recargas ($1,000 -> $1,060)
-      adminId = 'admin_panel',
+      bonoPorcentaje = 0,
+      adminId,
       nombreAdmin = 'Administrador',
       nota = '',
     } = req.body;
 
     const cleanTenantId = normalizarTenant(tenantId);
+    const cleanAdminId = String(adminId || '').trim();
+
+    // [CAMBIO] Validar permiso real del empleado en MongoDB
+    if (!cleanAdminId) {
+      return res.status(401).json({ exito: false, error: 'Operador no identificado.' });
+    }
+    if (cleanAdminId !== 'EMP-ADMIN') {
+      const empleado = await Empleado.findOne({ usuarioId: cleanAdminId });
+      if (!empleado || !empleado.permisos?.tokens) {
+        return res.status(403).json({
+          exito: false,
+          error: 'No tienes permiso para abonar tokens. Solicita acceso a tu supervisor.',
+        });
+      }
+    }
+
+    // [CAMBIO] Validar que confirmarCliente coincida con tenantId si fue enviado
+    if (!confirmarCliente || normalizarTenant(confirmarCliente) !== cleanTenantId) {
+      return res.status(400).json({
+        exito: false,
+        error: 'El número de cliente confirmado no coincide con el cliente seleccionado.',
+      });
+    }
+
     const bolsaUpper = String(bolsa || '').toUpperCase();
     const montoNum = Number(montoDeposito);
 
@@ -120,11 +228,12 @@ router.post('/abonar', async (req, res) => {
 
     const saldoPosterior = billeteraActualizada[campoBolsa];
     const saldoAnterior = Number((saldoPosterior - totalTokensAbonar).toFixed(2));
+    const notaLimpia = String(nota || '').trim();
 
     const historial = await HistorialTokens.create({
       tenantId: cleanTenantId,
       terminalId: 'PANEL',
-      usuarioId: String(adminId).trim(),
+      usuarioId: cleanAdminId,
       nombreUsuario: String(nombreAdmin).trim(),
       bolsa: bolsaUpper,
       tipo: 'ABONO_ADMIN',
@@ -136,13 +245,26 @@ router.post('/abonar', async (req, res) => {
       saldoPosterior,
       estado: 'EXITOSO',
       folioReferencia: generarFolioLite('ABONO', 'PANEL'),
-      detalleOperacion: { nota: String(nota || '').trim() },
+      detalleOperacion: { nota: notaLimpia },
       proveedorRespuesta: { simulado: false, codigo: 'ADMIN', mensaje: 'Abono acreditado' },
     });
+
+    // [CAMBIO] Disparar correo de confirmación al cliente
+    let resultadoCorreo = { enviado: false };
+    try {
+      resultadoCorreo = await enviarCorreoAbonoTokens({
+        cleanTenantId,
+        historial,
+        notaReferencia: notaLimpia,
+      });
+    } catch (errCorreo) {
+      console.error('>>> [CORREO TOKENS EXCEPCIÓN]:', errCorreo);
+    }
 
     return res.status(201).json({
       exito: true,
       mensaje: `Abono acreditado en ${bolsaUpper}: $${totalTokensAbonar} tokens`,
+      correoEnviado: resultadoCorreo.enviado === true,
       data: {
         billetera: billeteraActualizada,
         historial,
