@@ -635,4 +635,130 @@ router.post('/cobrar-servicio', async (req, res) => {
   }
 });
 
+// =========================================================================
+// [CAMBIO] GET: Métricas reales consolidadas para el Dashboard (16 KPIs)
+// =========================================================================
+router.get('/dashboard-metricas', async (req, res) => {
+  try {
+    const ahora = new Date();
+    const en7Dias = new Date(ahora.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const [licencias, billeteras, resumenHistorial] = await Promise.all([
+      Licencia.find({}, 'estado fecha_expiracion metodo_pago purchaseOrder'),
+      BilleteraTokens.find({}, 'tenantId tokensRecargas tokensServicios totalAbonadoRecargas totalAbonadoServicios'),
+      HistorialTokens.aggregate([
+        { $match: { estado: 'EXITOSO' } },
+        {
+          $group: {
+            _id: '$tipo',
+            totalOperacion: { $sum: '$montoOperacion' },
+            totalTokens: { $sum: { $abs: '$montoTokens' } },
+            totalTarifas: { $sum: '$tarifaFija' },
+            cantidad: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    let totalLicencias = licencias.length;
+    let clientesActivos = 0;
+    let clientesInactivos = 0;
+    let licenciasVencidas = 0;
+    let licenciasGratuitas = 0;
+    let pagosTarjeta = 0;
+    let pagosTransferencia = 0;
+    let porVencer7Dias = 0;
+
+    licencias.forEach((lic) => {
+      const estado = String(lic.estado || '').toLowerCase();
+      const pasarela = String(lic.metodo_pago?.pasarela || '').toLowerCase();
+      const fechaExp = lic.fecha_expiracion ? new Date(lic.fecha_expiracion) : null;
+      const vencida = fechaExp && fechaExp < ahora;
+
+      if (estado.includes('inactiv') || estado.includes('suspend') || estado.includes('cancel')) {
+        clientesInactivos++;
+      } else if (vencida || estado.includes('vencid')) {
+        licenciasVencidas++;
+      } else {
+        clientesActivos++;
+        if (fechaExp && fechaExp >= ahora && fechaExp <= en7Dias) {
+          porVencer7Dias++;
+        }
+      }
+
+      if (
+        estado.includes('trial') ||
+        estado.includes('prueba') ||
+        pasarela.includes('cortesia') ||
+        pasarela.includes('trial') ||
+        pasarela.includes('grat')
+      ) {
+        licenciasGratuitas++;
+      }
+
+      if (pasarela.includes('transferencia') || pasarela.includes('spei')) {
+        pagosTransferencia++;
+      } else if (
+        pasarela.includes('tarjeta') ||
+        pasarela.includes('card') ||
+        pasarela.includes('stripe') ||
+        pasarela.includes('mercadopago') ||
+        pasarela.includes('conekta')
+      ) {
+        pagosTarjeta++;
+      }
+    });
+
+    let clientesConTokens = 0;
+    let saldoVivoClientes = 0;
+    billeteras.forEach((b) => {
+      const saldoActual = Number(b.tokensRecargas || 0) + Number(b.tokensServicios || 0);
+      const tuvoMovimiento =
+        saldoActual > 0 || Number(b.totalAbonadoRecargas || 0) > 0 || Number(b.totalAbonadoServicios || 0) > 0;
+      if (tuvoMovimiento) clientesConTokens++;
+      saldoVivoClientes += saldoActual;
+    });
+
+    const mapaHist = {};
+    resumenHistorial.forEach((r) => {
+      mapaHist[r._id] = r;
+    });
+
+    const abonos = mapaHist.ABONO_ADMIN || { totalOperacion: 0, totalTokens: 0, cantidad: 0 };
+    const recargas = mapaHist.COBRO_RECARGA || { totalOperacion: 0, cantidad: 0 };
+    const servicios = mapaHist.COBRO_SERVICIO || { totalOperacion: 0, totalTarifas: 0, cantidad: 0 };
+
+    const saldoBolsaApi = Number(process.env.SALDO_API_MOCK || 0);
+
+    return res.json({
+      exito: true,
+      data: {
+        totalLicencias,
+        licenciasGratuitas,
+        pagosTarjeta,
+        pagosTransferencia,
+        clientesActivos,
+        clientesInactivos,
+        licenciasVencidas,
+        porVencer7Dias,
+        ventaTokensTotal: Number(abonos.totalOperacion || 0),
+        ventaTokensCantidad: Number(abonos.cantidad || 0),
+        clientesConTokens,
+        saldoBolsaApi,
+        saldoBolsaSimulado: process.env.RECARGAS_MODO_MOCK !== 'false',
+        saldoVivoClientes: Number(saldoVivoClientes.toFixed(2)),
+        recargasMonto: Number(recargas.totalOperacion || 0),
+        recargasCantidad: Number(recargas.cantidad || 0),
+        serviciosMonto: Number(servicios.totalOperacion || 0),
+        serviciosTarifas: Number(servicios.totalTarifas || 0),
+        serviciosCantidad: Number(servicios.cantidad || 0),
+        tokensUsadosTotal: Number((Number(recargas.totalOperacion || 0) + Number(servicios.totalOperacion || 0)).toFixed(2)),
+      },
+    });
+  } catch (error) {
+    console.error('>>> [DASHBOARD METRICAS ERROR]:', error);
+    return res.status(500).json({ exito: false, error: error.message });
+  }
+});
+
 module.exports = router;

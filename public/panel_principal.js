@@ -91,10 +91,18 @@ function cerrarSesion() {
 
 async function inicializarPanel() {
   try {
-    const respLic = await fetch(`${API_BASE}/api/licencias`);
+    const [respLic, respMetricas] = await Promise.all([
+      fetch(`${API_BASE}/api/licencias`),
+      fetch(`${API_BASE}/api/recargas-servicios/dashboard-metricas`),
+    ]);
+
     listaGlobalLicencias = await respLic.json();
-    actualizarKpisLicencias();
     poblarSelectorClientesTokens();
+
+    const jsonMetricas = await respMetricas.json();
+    if (jsonMetricas.exito) {
+      renderizarMetricasDashboard(jsonMetricas.data);
+    }
 
     if (sesionActual && sesionActual.usuarioId === 'EMP-ADMIN') {
       const respEmp = await fetch(`${API_BASE}/api/empleados`);
@@ -104,6 +112,55 @@ async function inicializarPanel() {
   } catch (error) {
     console.error('Error al sincronizar datos:', error);
   }
+}
+
+function renderizarMetricasDashboard(m) {
+  const total = m.totalLicencias || 0;
+  const pct = (n) => (total > 0 ? `${Math.round((n / total) * 100)}%` : '0%');
+
+  document.getElementById('kpi-licencias-gratuitas').innerText = m.licenciasGratuitas;
+  document.getElementById('kpi-licencias-gratuitas-det').innerText = `${pct(m.licenciasGratuitas)} de la cartera`;
+
+  document.getElementById('kpi-pagos-tarjeta').innerText = m.pagosTarjeta;
+  document.getElementById('kpi-pagos-tarjeta-det').innerText = `${pct(m.pagosTarjeta)} del total`;
+
+  document.getElementById('kpi-pagos-transferencia').innerText = m.pagosTransferencia;
+  document.getElementById('kpi-pagos-transferencia-det').innerText = `${pct(m.pagosTransferencia)} del total`;
+
+  document.getElementById('kpi-clientes-activos').innerText = m.clientesActivos;
+  document.getElementById('kpi-clientes-activos-det').innerText = `${pct(m.clientesActivos)} de cartera vigente`;
+
+  document.getElementById('kpi-clientes-inactivos').innerText = m.clientesInactivos;
+  document.getElementById('kpi-clientes-inactivos-det').innerText = `${pct(m.clientesInactivos)} suspendidos/baja`;
+
+  document.getElementById('kpi-licencias-vencidas').innerText = m.licenciasVencidas;
+  document.getElementById('kpi-licencias-vencidas-det').innerText = `${pct(m.licenciasVencidas)} requieren renovación`;
+
+  document.getElementById('kpi-venta-tokens').innerText = formatoMXN(m.ventaTokensTotal);
+  document.getElementById('kpi-venta-tokens-det').innerText = `${m.ventaTokensCantidad} abonos acreditados`;
+
+  document.getElementById('kpi-clientes-tokens').innerText = m.clientesConTokens;
+  document.getElementById('kpi-clientes-tokens-det').innerText = 'Billeteras con historial/saldo';
+
+  document.getElementById('kpi-saldo-api').innerText = formatoMXN(m.saldoBolsaApi);
+  document.getElementById('kpi-saldo-api-det').innerText = m.saldoBolsaSimulado
+    ? 'Modo simulador (conectar API real)'
+    : 'Saldo en Recargas Todo México';
+
+  document.getElementById('kpi-tokens-usados').innerText = formatoMXN(m.tokensUsadosTotal);
+  document.getElementById('kpi-tokens-usados-det').innerText = `${m.recargasCantidad + m.serviciosCantidad} ventas en POS`;
+
+  document.getElementById('kpi-saldo-vivo-clientes').innerText = formatoMXN(m.saldoVivoClientes);
+  document.getElementById('kpi-saldo-vivo-clientes-det').innerText = 'Por consumir en billeteras';
+
+  document.getElementById('kpi-recargas-vendidas').innerText = formatoMXN(m.recargasMonto);
+  document.getElementById('kpi-recargas-vendidas-det').innerText = `${m.recargasCantidad} recargas exitosas`;
+
+  document.getElementById('kpi-servicios-pagados').innerText = formatoMXN(m.serviciosMonto);
+  document.getElementById('kpi-servicios-pagados-det').innerText = `${m.serviciosCantidad} recibos (${formatoMXN(m.serviciosTarifas)} tarifas)`;
+
+  document.getElementById('kpi-por-vencer').innerText = m.porVencer7Dias;
+  document.getElementById('kpi-por-vencer-det').innerText = m.porVencer7Dias === 1 ? '1 licencia próxima a vencer' : 'Seguimiento preventivo';
 }
 
 function actualizarKpisLicencias() {

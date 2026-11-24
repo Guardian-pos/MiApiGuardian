@@ -75,19 +75,30 @@
                         <span>Actualizar Dashboard</span>
                     </button>
                 </div>
-                <section class="grid-kpis">
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-globe"></i><span>Visitas Web Guardian Pos</span></div><h3>14,250</h3><p class="kpi-detalle positivo">+8% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-cart"></i><span>Compras en la Web</span></div><h3>320</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-gift"></i><span>Licencias Gratuitas</span></div><h3>155</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-credit-card"></i><span>Pagos con Tarjeta</span></div><h3>210</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-transfer"></i><span>Pagos con Transferencia</span></div><h3>325</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-user-check"></i><span>Clientes Activos</span></div><h3 id="kpi-clientes-activos">--</h3><p class="kpi-detalle positivo">Sincronizado con Mongo</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-user-x"></i><span>Clientes Inactivos</span></div><h3>186</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-time-five"></i><span>Licencias Vencidas</span></div><h3 id="kpi-licencias-vencidas">--</h3><p class="kpi-detalle negativo">Requieren renovación</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-coin-stack"></i><span>Venta de Tokens</span></div><h3>101,498</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-group"></i><span>Clientes con Tokens</span></div><h3>479</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-wallet"></i><span>Saldo actual de Tokens</span></div><h3>356,000</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-trending-up"></i><span>Proyección de Crecimiento</span></div><h3>500</h3><p class="kpi-detalle positivo">+12% este mes</p></div>
+                 <section class="grid-kpis">
+                    <!-- 1 y 2: Pendientes de tráfico web -->
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-globe"></i><span>Visitas Web Guardián POS</span></div><h3>--</h3><p class="kpi-detalle">Pendiente (Analytics web)</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-cart"></i><span>Compras en la Web</span></div><h3>--</h3><p class="kpi-detalle">Pendiente (pasarela web)</p></div>
+
+                    <!-- 3 a 8: Licencias y Clientes (MongoDB Atlas) -->
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-gift"></i><span>Licencias Gratuitas / Trial</span></div><h3 id="kpi-licencias-gratuitas">0</h3><p class="kpi-detalle" id="kpi-licencias-gratuitas-det">0% de la cartera</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-credit-card"></i><span>Pagos con Tarjeta</span></div><h3 id="kpi-pagos-tarjeta">0</h3><p class="kpi-detalle positivo" id="kpi-pagos-tarjeta-det">0% de pagos</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-transfer"></i><span>Pagos con Transferencia</span></div><h3 id="kpi-pagos-transferencia">0</h3><p class="kpi-detalle positivo" id="kpi-pagos-transferencia-det">0% de pagos</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-user-check"></i><span>Clientes Activos</span></div><h3 id="kpi-clientes-activos">0</h3><p class="kpi-detalle positivo" id="kpi-clientes-activos-det">0% de cartera vigente</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-user-x"></i><span>Clientes Inactivos</span></div><h3 id="kpi-clientes-inactivos">0</h3><p class="kpi-detalle" id="kpi-clientes-inactivos-det">Suspendidos o baja</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-time-five"></i><span>Licencias Vencidas</span></div><h3 id="kpi-licencias-vencidas">0</h3><p class="kpi-detalle negativo" id="kpi-licencias-vencidas-det">Requieren renovación</p></div>
+
+                    <!-- 9 a 15: Ecosistema Tokens (Recargas y Servicios) -->
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-coin-stack"></i><span>Venta Total de Tokens</span></div><h3 id="kpi-venta-tokens">$0.00</h3><p class="kpi-detalle positivo" id="kpi-venta-tokens-det">0 abonos acreditados</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-group"></i><span>Clientes con Tokens</span></div><h3 id="kpi-clientes-tokens">0</h3><p class="kpi-detalle" id="kpi-clientes-tokens-det">Billeteras activas</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-wallet"></i><span>Saldo en Bolsa API</span></div><h3 id="kpi-saldo-api">$0.00</h3><p class="kpi-detalle" id="kpi-saldo-api-det">Proveedor Recargas Todo México</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-trending-up"></i><span>Tokens Vendidos por Clientes</span></div><h3 id="kpi-tokens-usados">$0.00</h3><p class="kpi-detalle positivo" id="kpi-tokens-usados-det">Consumo total en POS</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-layer"></i><span>Saldo Vivo en Clientes</span></div><h3 id="kpi-saldo-vivo-clientes">$0.00</h3><p class="kpi-detalle" id="kpi-saldo-vivo-clientes-det">Por consumir en billeteras</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-mobile-alt"></i><span>Recargas Electrónicas</span></div><h3 id="kpi-recargas-vendidas">$0.00</h3><p class="kpi-detalle positivo" id="kpi-recargas-vendidas-det">0 recargas exitosas</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-receipt"></i><span>Pagos de Servicios</span></div><h3 id="kpi-servicios-pagados">$0.00</h3><p class="kpi-detalle positivo" id="kpi-servicios-pagados-det">0 recibos ($0.00 tarifas)</p></div>
+
+                    <!-- 16: Alerta temprana de cobranza -->
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-calendar-exclamation"></i><span>Por Vencer (Próx. 7 Días)</span></div><h3 id="kpi-por-vencer">0</h3><p class="kpi-detalle negativo" id="kpi-por-vencer-det">Seguimiento preventivo</p></div>
                 </section>
             </div>
 
