@@ -1,0 +1,451 @@
+*{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #0b0b0e; /*Fondo negro profundo */
+    color: #ffffff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.menu-lateral {
+    width: 260px;
+    height: 100vh;
+    background-color: #121216;
+    padding: 24px 16px;
+    border-right: 1px solid #23232a;
+}
+
+.logo {
+    margin-bottom: 24px;
+    padding-left: 12px;
+}
+
+.logo h2:first-child {
+    font-size: 32px;
+    color: #ffffff;
+    margin-bottom: 38px; /*Separa la marca de la palabra Menu*/
+}
+
+.logo h2:last-child {
+    font-size: 12px;
+    text-transform: uppercase; /* lo pone en mayusculas pequeñas*/
+    letter-spacing: 1px;
+    color: #6c6c7a;
+}
+
+.menu-lateral ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 13px; /*espacio vertical entre cada boton */
+}
+
+.menu-lateral a {
+    text-decoration: none;
+    color: #a0a0ab;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 20px;
+    transition: all 0.2s ease; /* Hace que el cambio de color sea suave */
+}
+
+.menu-lateral a i {
+    font-size: 29px;
+}
+
+.menu-lateral a:hover {
+    background-color: #1f1f26;
+    color: #F8F8FF;
+
+}
+
+.menu-lateral a.activo {
+    background-color: #7c3ead; /*morado vibrante */
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.contenedor-principal {
+    display: flex;
+    min-height: 100vh;
+}
+
+.contenido-principal {
+    flex: 1;
+    padding: 32px;
+}
+
+.barra-superior {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #23232a;
+}
+
+.saludo h1 {
+    font-size: 26px;
+    margin-bottom: 6px;
+}
+
+.saludo p {
+    color: #a0a0ab;
+    font-size: 15px;
+}
+
+.usuario-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #121216;
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 1px solid #23232a;
+}
+
+.usuario-info i {
+    font-size: 26px;
+    color: #7c3aed; /*el mismo color morado del boton activo */
+}
+
+/* Cabecera y boton de actualizar */
+
+.cabecera-metricas {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 28px;
+    margin-bottom: 20px;
+}
+
+.cabecera-metricas h2 {
+    font-size: 20px;
+    color: #ffffff;
+}
+
+.btn-actualizar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #7c3aed;
+    color: #ffffff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-actualizar:hover {
+    background-color: #6d28d9; /* Morado un poco mas oscuro al pasar el mouse*/
+}
+
+/* Cuadricula de las 12 targetas */
+
+.grid-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+}
+
+.tarjeta-kpi {
+    position: relative;
+    overflow: hidden;
+    background-color: #121216;
+    border: 1px solid #23232a;
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.tarjeta-kpi:hover {
+    border-color: #7c3aed;
+    transform: translateY(-2px);
+}
+
+.kpi-top {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    color: #a0a0ab;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.kpi-top i {
+    font-size: 22px;
+    color: #e2e8f0;
+    background-color: rgba(124, 58, 237, 0.2);
+    padding: 10px;
+    border-radius: 10px;
+}
+
+.tarjeta-kpi h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 6px;
+    position: relative;
+    z-index: 2;
+}
+
+.kpi-detalle {
+    font-size: 13px;
+    color: #6c6c7a;
+    z-index: 2;
+}
+
+.kpi-grafica {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 130px;
+    height: 60px;
+    opacity: 0.75;
+    pointer-events: none; 
+}
+
+.kpi-detalle.positivo {
+    color: #10b981;
+}
+
+.kpi-detalle.negativo {
+    color: #ef4444;
+}
+
+@keyframes girar {
+    from { transform: rotate(0deg);}
+    to {transform: rotate(360deg);}
+}
+
+.girando {
+    animation: girar 0.8s linear infinite;
+}
+
+.vista {
+  display: none; /* Oculta todas las secciones por defecto */
+}
+
+.vista.active {
+  display: block; /* Muestra únicamente la sección activa */
+}
+
+/* =========================================================
+   [CAMBIO] Estilos de Login, Formularios, Tablas y Tokens
+   ========================================================= */
+.login-contenedor {
+    max-width: 400px;
+    margin: 90px auto;
+    background-color: #121216;
+    border: 1px solid #23232a;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+}
+
+.login-contenedor h2 {
+    color: #ffffff;
+    margin-bottom: 6px;
+}
+
+.login-sub {
+    color: #a0a0ab;
+    font-size: 13px;
+    margin-bottom: 24px;
+}
+
+.campo-grupo {
+    text-align: left;
+    margin-bottom: 14px;
+}
+
+.campo-grupo label {
+    display: block;
+    font-size: 12px;
+    color: #a0a0ab;
+    margin-bottom: 6px;
+}
+
+.campo-grupo input,
+.campo-grupo select,
+.barra-busqueda input,
+.barra-busqueda select {
+    width: 100%;
+    background-color: #1a1a21;
+    border: 1px solid #2b2b36;
+    color: #ffffff;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+}
+
+.campo-grupo input:focus,
+.campo-grupo select:focus,
+.barra-busqueda input:focus {
+    border-color: #7c3aed;
+}
+
+.tarjeta-panel {
+    background-color: #121216;
+    border: 1px solid #23232a;
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 20px;
+}
+
+.tarjeta-panel h3 {
+    font-size: 16px;
+    color: #ffffff;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #23232a;
+}
+
+.barra-busqueda {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.barra-busqueda input {
+    flex: 1;
+    min-width: 220px;
+}
+
+.grid-formulario {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+}
+
+.info-caja {
+    background-color: #1a1a21;
+    border: 1px solid #23232a;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.info-caja small {
+    display: block;
+    font-size: 11px;
+    color: #a78bfa;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.info-caja span {
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.tabla-oscura {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.tabla-oscura th,
+.tabla-oscura td {
+    padding: 11px 10px;
+    text-align: left;
+    border-bottom: 1px solid #23232a;
+    font-size: 13px;
+}
+
+.tabla-oscura th {
+    color: #a78bfa;
+    font-weight: 600;
+}
+
+.btn-secundario {
+    background-color: #23232a;
+    color: #ffffff;
+    border: 1px solid #32323d;
+    padding: 8px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-peligro {
+    background-color: #dc2626;
+    color: #ffffff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-exito {
+    background-color: #10b981;
+    color: #0b0b0e;
+    font-weight: 600;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.badge-estado {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.badge-ok {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+.badge-error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.badge-info {
+    background: rgba(124, 58, 237, 0.2);
+    color: #c4b5fd;
+}
+
+.checks-permisos {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    background: #1a1a21;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+}
+
+.checks-permisos label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.preview-tokens {
+    background: rgba(124, 58, 237, 0.12);
+    border: 1px solid #7c3aed;
+    color: #ddd6fe;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 14px;
+}
