@@ -283,6 +283,9 @@ async function registrarEmpleado() {
     renovacion: document.getElementById('perm-renovacion').checked,
     reactivacion: document.getElementById('perm-reactivacion').checked,
     telefonica: document.getElementById('perm-telefonica').checked,
+    tokens: document.getElementById('perm-tokens').checked,     // [CAMBIO]
+    tareas: document.getElementById('perm-tareas').checked,     // [CAMBIO]
+    reportes: document.getElementById('perm-reportes').checked, // [CAMBIO]
   };
   if (!nombre || !correo) return alert('Ingrese nombre y correo.');
 
@@ -323,7 +326,7 @@ function cancelarEdicionEmpleado() {
   empleadoEnEdicionId = null;
   document.getElementById('emp-nombre').value = '';
   document.getElementById('emp-correo').value = '';
-  ['perm-cortesia', 'perm-renovacion', 'perm-reactivacion', 'perm-telefonica', 'perm-tokens', 'perm-tareas', 'perm-reportes'].forEach((id) => { // [CAMBIO]
+  ['perm-cortesia', 'perm-renovacion', 'perm-reactivacion', 'perm-telefonica', 'perm-tokens', 'perm-tareas', 'perm-reportes'].forEach((id) => {
     document.getElementById(id).checked = false;
   });
   document.getElementById('btn-accion-empleado').innerText = 'Generar Cuenta de Empleado';
@@ -338,6 +341,9 @@ async function guardarEdicionEmpleado() {
     renovacion: document.getElementById('perm-renovacion').checked,
     reactivacion: document.getElementById('perm-reactivacion').checked,
     telefonica: document.getElementById('perm-telefonica').checked,
+    tokens: document.getElementById('perm-tokens').checked,     // [CAMBIO]
+    tareas: document.getElementById('perm-tareas').checked,     // [CAMBIO]
+    reportes: document.getElementById('perm-reportes').checked, // [CAMBIO]
   };
   const resp = await fetch(`${API_BASE}/api/empleados/actualizar/${empleadoEnEdicionId}`, {
     method: 'PUT',
@@ -496,49 +502,6 @@ function renderizarHistorialTokens(lista) {
   });
 }
 
-async function abonarTokensCliente() {
-  const tenantId = document.getElementById('tokens-tenant-input').value.trim().toLowerCase();
-  const bolsa = document.getElementById('tokens-bolsa').value;
-  const montoDeposito = Number(document.getElementById('tokens-monto').value);
-  const bonoPorcentaje = bolsa === 'RECARGAS' ? Number(document.getElementById('tokens-bono-pct').value || 0) : 0;
-  const nota = document.getElementById('tokens-nota').value.trim();
-  const adminKey = document.getElementById('tokens-admin-key').value.trim();
-
-  if (!tenantId) return alert('Primero selecciona o escribe el tenantId del cliente.');
-  if (!montoDeposito || montoDeposito <= 0) return alert('Ingresa un monto de depósito mayor a 0.');
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (adminKey) headers['x-admin-key'] = adminKey;
-
-  try {
-    const resp = await fetch(`${API_BASE}/api/recargas-servicios/abonar`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        tenantId,
-        bolsa,
-        montoDeposito,
-        bonoPorcentaje,
-        adminId: sesionActual?.usuarioId || 'EMP-ADMIN',
-        nombreAdmin: sesionActual?.nombre || 'Administrador',
-        nota,
-      }),
-    });
-    const res = await resp.json();
-    if (res.exito) {
-      alert(res.mensaje);
-      document.getElementById('tokens-monto').value = '';
-      document.getElementById('tokens-nota').value = '';
-      actualizarPreviewTokens();
-      await cargarBilleteraYHistorial();
-    } else {
-      alert('Error al abonar: ' + (res.error || 'Desconocido'));
-    }
-  } catch (err) {
-    console.error(err);
-    alert('Error de conexión al abonar tokens.');
-  }
-
 function limpiarPantallaTokens() {
   document.getElementById('tokens-select-cliente').value = '';
   document.getElementById('tokens-tenant-input').value = '';
@@ -599,6 +562,4 @@ async function abonarTokensCliente() {
     console.error(err);
     alert('Error de conexión al abonar tokens.');
   }
-}
-
 }
