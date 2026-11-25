@@ -316,28 +316,69 @@
                 </div>
 
                 <div id="trial-contenido-autorizado">
+                    <!-- [CAMBIO] MÉTRICAS SUPERIORES DE TRIAL -->
+                    <section class="grid-kpis" style="margin-bottom: 20px;">
+                        <div class="tarjeta-kpi">
+                            <div class="kpi-top"><i class="bx bx-gift"></i><span>Trials Activos</span></div>
+                            <h3 id="trial-kpi-activos">0</h3>
+                            <p class="kpi-detalle positivo">Pruebas vigentes actualmente</p>
+                        </div>
+                        <div class="tarjeta-kpi">
+                            <div class="kpi-top"><i class="bx bx-time-five"></i><span>Trials Vencidos</span></div>
+                            <h3 id="trial-kpi-vencidos">0</h3>
+                            <p class="kpi-detalle negativo">Pruebas expiradas totales</p>
+                        </div>
+                        <div class="tarjeta-kpi">
+                            <div class="kpi-top"><i class="bx bx-trash"></i><span>Vencidos +3 Meses</span></div>
+                            <h3 id="trial-kpi-depurables">0</h3>
+                            <p class="kpi-detalle negativo">Candidatos a depuración</p>
+                        </div>
+                    </section>
+
+                    <!-- [CAMBIO] BANDEJA DE LICENCIAS GRATUITAS CON SELECCIÓN MÚLTIPLE Y DEPURACIÓN -->
                     <div class="tarjeta-panel">
-                        <h3>1. Buscar Cliente / Licencia</h3>
+                        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px;">
+                            <h3 style="margin: 0;">1. Licencias Gratuitas (Trial)</h3>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                                <select id="trial-filtro-estado" onchange="filtrarTablaTrials()" style="padding: 8px 10px; border-radius: 6px;">
+                                    <option value="todos">Mostrar: Todos los Trials</option>
+                                    <option value="prueba_activa">Solo Activos</option>
+                                    <option value="prueba_vencida">Solo Vencidos</option>
+                                    <option value="vencidos_3m">Solo Vencidos +3 Meses</option>
+                                </select>
+                                <button class="btn-peligro" id="btn-eliminar-trials" onclick="eliminarTrialsSeleccionados()">
+                                    <i class="bx bx-trash"></i>
+                                    <span>Eliminar Licencias Vencidas (<span id="trial-count-sel">0</span>)</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="barra-busqueda">
-                            <input type="text" id="trial-input-buscar" placeholder="Buscar por Número de Cliente, Negocio, Licencia o Correo...">
+                            <input type="text" id="trial-input-buscar" placeholder="Buscar por Número de Cliente, Negocio, Licencia o Correo..." oninput="filtrarTablaTrials()">
                             <button class="btn-actualizar" onclick="buscarClienteTrial()">Buscar</button>
                         </div>
+
                         <table class="tabla-oscura">
                             <thead>
                                 <tr>
-                                    <th style="width: 40px;">Sel.</th>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="trial-check-todos" title="Seleccionar todos los vencidos visibles" onchange="toggleSeleccionarTodosTrials(this.checked)">
+                                    </th>
                                     <th>No. Cliente</th>
-                                    <th>Negocio</th>
+                                    <th>Negocio / Correo</th>
                                     <th>Licencia</th>
+                                    <th>Estatus</th>
                                     <th>Vencimiento</th>
+                                    <th>Acción</th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-trial-resultados">
-                                <tr><td colspan="5" style="text-align: center; color: #a0a0ab;">Busca un cliente arriba para seleccionar su licencia.</td></tr>
+                                <tr><td colspan="7" style="text-align: center; color: #a0a0ab;">Presiona "Refrescar" para cargar las licencias de prueba.</td></tr>
                             </tbody>
                         </table>
                     </div>
 
+                    <!-- PANEL INFERIOR: EXTENDER VIGENCIA O PRUEBA PILOTO -->
                     <div class="tarjeta-panel">
                         <h3>2. Extender Vigencia o Prueba Piloto</h3>
                         <div class="grid-formulario">

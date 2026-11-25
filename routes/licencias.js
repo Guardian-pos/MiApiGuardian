@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const Licencia = require('../models/Licencia');
 const Empleado = require('../models/Empleado'); // [CAMBIO]
+const Producto = require('../models/Product'); // [CAMBIO] Para depuración en cascada de trials
+const Movimiento = require('../models/movimientos'); // [CAMBIO] Para depuración en cascada de trials
+const BilleteraTokens = require('../models/BilleteraTokens'); // [CAMBIO] Para depuración en cascada de trials
+const HistorialTokens = require('../models/HistorialTokens'); // [CAMBIO] Para depuración en cascada de trials
 const { Resend } = require('resend');           // [CAMBIO]
 const bcrypt = require('bcrypt');
 
@@ -107,6 +111,13 @@ router.put('/actualizar/:id', async (req, res) => {
 
         if (fecha_expiracion) licencia.fecha_expiracion = fecha_expiracion;
         if (estado) licencia.estado = estado;
+
+        // [CAMBIO] Reiniciar banderas de notificación del cron al renovar, reactivar o extender fecha
+        if (fecha_expiracion || ['RENOVACION', 'CORTESIA', 'REACTIVACION'].includes(tipoOperacion)) {
+            licencia.aviso_7d_enviado = false;
+            licencia.aviso_3d_enviado = false;
+            licencia.aviso_vencimiento_enviado = false;
+        }
 
         if (metodo_pago) {
             if (!licencia.metodo_pago) licencia.metodo_pago = {};
@@ -390,7 +401,6 @@ router.post('/usuarios/login', async (req, res) => {
     }
 });
 
-
 // =========================================================================
 // MÓDULOS NUEVOS: SOPORTE PARA EL CONFIGURACION PROVIDER DE FLUTTER
 // =========================================================================
@@ -475,7 +485,6 @@ router.post('/usuarios/guardar', async (req, res) => {
     }
 });
 
-
 // =========================================================================
 // MÓDULO WEB: AUTENTICACIÓN, ACTIVACIÓN Y CREACIÓN DE CONTRASEÑA
 // =========================================================================
@@ -489,14 +498,12 @@ router.post('/web/login', async (req, res) => {
             return res.status(400).json({ exito: false, error: 'Faltan datos obligatorios.' });
         }
 
-        // Buscamos la licencia que tenga ese correo y cuya contraseña web ya esté creada
         const licencia = await Licencia.findOne({ 'client.correo': email });
 
         if (!licencia || !licencia.passwordWeb) {
             return res.status(401).json({ exito: false, error: 'Credenciales incorrectas o cuenta no activada.' });
         }
 
-        // Comparamos la contraseña ingresada con el hash cifrado de bcrypt
         const passwordValido = await bcrypt.compare(password, licencia.passwordWeb);
 
         if (!passwordValido) {
@@ -521,10 +528,9 @@ router.post('/web/login', async (req, res) => {
 
 // RUTA: Verificar datos (Licencia/Número de cliente y Correo) para primer acceso web
 router.post('/web/verificar-activacion', async (req, res) => {
-
     try {
         const { licencia, email } = req.body;
-           console.log("--> RECIBIDA PETICIÓN DE VERIFICACIÓN WEB:", req.body); // <-- AQUÍ EL LOG
+        console.log("--> RECIBIDA PETICIÓN DE VERIFICACIÓN WEB:", req.body);
         if (!licencia || !email) {
             return res.status(400).json({ 
                 exito: false, 
@@ -532,7 +538,6 @@ router.post('/web/verificar-activacion', async (req, res) => {
             });
         }
 
-        // Buscamos en MongoDB si coincide la licencia o el número de cliente Y el correo del cliente
         const clienteLicencia = await Licencia.findOne({ 
             $or: [{ licenseKey: licencia }, { 'client.numero_cliente': licencia }],
             'client.correo': email 
@@ -574,11 +579,9 @@ router.post('/web/crear-password', async (req, res) => {
             return res.status(404).json({ exito: false, error: 'Registro de licencia no encontrado.' });
         }
 
-        // Encriptamos la contraseña web usando bcrypt por seguridad
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(passwordWeb, salt);
 
-        // Guardamos la contraseña web y marcamos como activada
         licencia.passwordWeb = hashedPassword;
         licencia.webActivada = true;
         licencia.updatedAt = Date.now();
@@ -592,6 +595,63 @@ router.post('/web/crear-password', async (req, res) => {
 
     } catch (error) {
         console.error('Error al guardar la contraseña web:', error);
+        return res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// [CAMBIO] RUTA: Eliminar en cascada licencias trial vencidas y toda su información de prueba
+router.delete('/trials/depurar', async (req, res) => {
+    try {
+        const { ids, adminId } = req.body;
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ exito: false, error: 'No se seleccionaron licencias para eliminar.' });
+        }
+
+        if (adminId && adminId !== 'EMP-ADMIN') {
+            const empleado = await Empleado.findOne({ usuarioId: String(adminId).trim() });
+            if (!empleado || !empleado.permisos?.cortesia) {
+                return res.status(403).json({ exito: false, error: 'No tienes permiso autorizado para depurar trials.' });
+            }
+        }
+
+        const licenciasVencidas = await Licencia.find({
+            _id: { $in: ids },
+            estado: 'prueba_vencida'
+        });
+
+        let eliminadas = 0;
+        for (const lic of licenciasVencidas) {
+            const numCliente = lic.client?.numero_cliente ? String(lic.client.numero_cliente).trim() : '';
+            const cleanTenantId = numCliente.toLowerCase();
+
+            if (cleanTenantId) {
+                const otraLicencia = await Licencia.findOne({
+                    _id: { $nin: ids },
+                    'client.numero_cliente': new RegExp(`^${cleanTenantId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+                });
+
+                if (!otraLicencia) {
+                    await Promise.all([
+                        Producto.deleteMany({ tenantId: cleanTenantId }),
+                        Movimiento.deleteMany({ tenantId: cleanTenantId }),
+                        BilleteraTokens.deleteMany({ tenantId: cleanTenantId }),
+                        HistorialTokens.deleteMany({ tenantId: cleanTenantId }),
+                    ]);
+                }
+            }
+
+            await Licencia.deleteOne({ _id: lic._id });
+            eliminadas++;
+        }
+
+        return res.status(200).json({
+            exito: true,
+            eliminadas,
+            mensaje: `Se eliminaron ${eliminadas} licencia(s) de prueba vencidas y sus datos asociados.`
+        });
+    } catch (error) {
+        console.error('>>> [ERROR DEPURAR TRIALS]:', error);
         return res.status(500).json({ exito: false, error: error.message });
     }
 });

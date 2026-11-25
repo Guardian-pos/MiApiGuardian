@@ -35,7 +35,7 @@ enlacesMenu.forEach((enlace) => {
     } else if (idVista === 'vista-clientes') {
       limpiarVistaClientes();
     } else if (idVista === 'vista-trial') {
-      limpiarVistaTrial();
+      await refrescarVistaTrial(); // [CAMBIO] Carga métricas y lista de trials al abrir la pestaña
     } else if (idVista === 'vista-tokens') {
       limpiarPantallaTokens();
     }
@@ -228,6 +228,7 @@ function buscarCliente() {
   }
 
   const filtrados = listaGlobalLicencias.filter((item) => {
+    if (['prueba_activa', 'prueba_vencida'].includes(item.estado)) return false; // [CAMBIO] Excluir trials de Clientes
     const c = item.client || {};
     return [c.numero_cliente, c.nombre_negocio, c.nombre_contacto, c.correo, c.telefono, item.purchaseOrder]
       .some((v) => v && String(v).toLowerCase().includes(query));
@@ -327,8 +328,10 @@ let itemTrialSeleccionado = null;
 function limpiarVistaTrial() {
   itemTrialSeleccionado = null;
   document.getElementById('trial-input-buscar').value = '';
-  document.getElementById('tabla-trial-resultados').innerHTML =
-    '<tr><td colspan="5" style="text-align:center;color:#a0a0ab;">Busca un cliente arriba para seleccionar su licencia.</td></tr>';
+  const filtroEl = document.getElementById('trial-filtro-estado');
+  if (filtroEl) filtroEl.value = 'todos';
+  const checkTodos = document.getElementById('trial-check-todos');
+  if (checkTodos) checkTodos.checked = false;
   document.getElementById('cortesia-num-cliente').value = '';
   document.getElementById('cortesia-negocio').value = '';
   document.getElementById('cortesia-license').value = '';
@@ -338,40 +341,162 @@ function limpiarVistaTrial() {
   document.getElementById('cortesia-dias').value = '30';
   document.getElementById('cortesia-motivo').value = '';
   document.getElementById('cortesia-confirmar-cliente').value = '';
+  actualizarMetricasYListaTrial(); // [CAMBIO]
 }
 
-function buscarClienteTrial() {
-  const q = document.getElementById('trial-input-buscar').value.toLowerCase().trim();
-  const tbody = document.getElementById('tabla-trial-resultados');
-  if (!q) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#a0a0ab;">Ingrese un criterio de búsqueda.</td></tr>';
-    return;
-  }
-  const filtrados = listaGlobalLicencias.filter((item) => {
+// [CAMBIO] Calcula métricas superiores (activos, vencidos, +3 meses) y renderiza tabla trial
+function actualizarMetricasYListaTrial() {
+  const ahora = new Date();
+  const hace90Dias = new Date(ahora.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const trials = (listaGlobalLicencias || []).filter((l) =>
+    ['prueba_activa', 'prueba_vencida'].includes(l.estado)
+  );
+
+  let activos = 0;
+  let vencidos = 0;
+  let depurables = 0;
+
+  trials.forEach((l) => {
+    if (l.estado === 'prueba_activa') {
+      activos++;
+    } else if (l.estado === 'prueba_vencida') {
+      vencidos++;
+      if (l.fecha_expiracion && new Date(l.fecha_expiracion) < hace90Dias) {
+        depurables++;
+      }
+    }
+  });
+
+  const elAct = document.getElementById('trial-kpi-activos');
+  const elVen = document.getElementById('trial-kpi-vencidos');
+  const elDep = document.getElementById('trial-kpi-depurables');
+  if (elAct) elAct.innerText = activos;
+  if (elVen) elVen.innerText = vencidos;
+  if (elDep) elDep.innerText = depurables;
+
+  filtrarTablaTrials();
+}
+
+// [CAMBIO] Filtra por estado/antigüedad (+3 meses) y búsqueda de texto
+function filtrarTablaTrials() {
+  const q = (document.getElementById('trial-input-buscar')?.value || '').toLowerCase().trim();
+  const filtroEstado = document.getElementById('trial-filtro-estado')?.value || 'todos';
+  const ahora = new Date();
+  const hace90Dias = new Date(ahora.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  const filtrados = (listaGlobalLicencias || []).filter((item) => {
+    if (!['prueba_activa', 'prueba_vencida'].includes(item.estado)) return false;
+
+    if (filtroEstado === 'prueba_activa' && item.estado !== 'prueba_activa') return false;
+    if (filtroEstado === 'prueba_vencida' && item.estado !== 'prueba_vencida') return false;
+    if (filtroEstado === 'vencidos_3m') {
+      if (item.estado !== 'prueba_vencida') return false;
+      if (!item.fecha_expiracion || new Date(item.fecha_expiracion) >= hace90Dias) return false;
+    }
+
+    if (!q) return true;
     const c = item.client || {};
     return [c.numero_cliente, c.nombre_negocio, c.correo, item.licenseKey]
       .some((v) => v && String(v).toLowerCase().includes(q));
   });
-  if (filtrados.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#a0a0ab;">Sin resultados.</td></tr>';
+
+  renderizarTablaTrials(filtrados);
+}
+
+function buscarClienteTrial() {
+  filtrarTablaTrials();
+}
+
+// [CAMBIO] Renderiza tabla con checkboxes seguros (solo habilitados en prueba_vencida)
+function renderizarTablaTrials(lista) {
+  const tbody = document.getElementById('tabla-trial-resultados');
+  const checkTodos = document.getElementById('trial-check-todos');
+  if (checkTodos) checkTodos.checked = false;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#a0a0ab;">No hay licencias trial que coincidan con el filtro.</td></tr>';
+    actualizarContadorTrialsSeleccionados();
     return;
   }
+
   tbody.innerHTML = '';
-  filtrados.forEach((item) => {
+  const ahora = new Date();
+  const hace90Dias = new Date(ahora.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  lista.forEach((item) => {
+    const esVencida = item.estado === 'prueba_vencida';
+    const masDe3Meses = esVencida && item.fecha_expiracion && new Date(item.fecha_expiracion) < hace90Dias;
     const fechaText = item.fecha_expiracion ? new Date(item.fecha_expiracion).toLocaleDateString('es-MX', { timeZone: 'UTC' }) : 'N/A';
+
+    let badge = '<span class="badge-estado badge-ok">ACTIVA</span>';
+    if (masDe3Meses) badge = '<span class="badge-estado badge-error">VENCIDA +3M</span>';
+    else if (esVencida) badge = '<span class="badge-estado badge-error">VENCIDA</span>';
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="radio" name="sel-trial" onclick='seleccionarLicenciaTrial(${JSON.stringify(item)})'></td>
+      <td>
+        <input type="checkbox" class="trial-check-item" value="${item._id}" ${esVencida ? '' : 'disabled title="No se puede eliminar un trial activo"'} onchange="actualizarContadorTrialsSeleccionados()">
+      </td>
       <td>${item.client?.numero_cliente || 'CLI-S/N'}</td>
-      <td>${item.client?.nombre_negocio || '-'}</td>
+      <td>${item.client?.nombre_negocio || '-'}<br><small style="color:#a0a0ab;">${item.client?.correo || ''}</small></td>
       <td style="font-family:monospace;color:#a78bfa;">${item.licenseKey}</td>
+      <td>${badge}</td>
       <td>${fechaText}</td>
+      <td><button class="btn-secundario" style="padding:5px 10px;font-size:12px;" onclick="seleccionarLicenciaTrial('${item._id}')">Extender</button></td>
     `;
     tbody.appendChild(tr);
   });
+
+  actualizarContadorTrialsSeleccionados();
 }
 
-function seleccionarLicenciaTrial(item) {
+// [CAMBIO] Seleccionar o deseleccionar todas las licencias trial vencidas visibles
+function toggleSeleccionarTodosTrials(marcado) {
+  document.querySelectorAll('.trial-check-item:not(:disabled)').forEach((chk) => {
+    chk.checked = marcado;
+  });
+  actualizarContadorTrialsSeleccionados();
+}
+
+// [CAMBIO] Actualiza el contador en el botón de eliminación
+function actualizarContadorTrialsSeleccionados() {
+  const total = document.querySelectorAll('.trial-check-item:checked').length;
+  const lbl = document.getElementById('trial-count-sel');
+  if (lbl) lbl.innerText = total;
+}
+
+// [CAMBIO] Depuración en cascada de trials vencidos seleccionados
+async function eliminarTrialsSeleccionados() {
+  const ids = Array.from(document.querySelectorAll('.trial-check-item:checked')).map((el) => el.value);
+  if (ids.length === 0) return alert('Selecciona al menos una licencia trial vencida.');
+
+  const confirmado = confirm(
+    `¿Eliminar ${ids.length} licencia(s) de prueba vencida(s)?\n\nEsto borrará de forma irreversible su licencia, productos, movimientos e historial de tokens en MongoDB.`
+  );
+  if (!confirmado) return;
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/licencias/trials/depurar`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, adminId: sesionActual?.usuarioId || '' }),
+    });
+    const res = await resp.json();
+    if (resp.ok && res.exito) {
+      alert(res.mensaje);
+      await refrescarVistaTrial();
+    } else {
+      alert('Error: ' + (res.error || 'No se pudieron eliminar las licencias.'));
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error de conexión al depurar trials.');
+  }
+}
+
+function seleccionarLicenciaTrial(id) {
+  const item = listaGlobalLicencias.find((l) => l._id === id);
+  if (!item) return;
   itemTrialSeleccionado = item;
   document.getElementById('cortesia-num-cliente').value = item.client?.numero_cliente || 'CLI-S/N';
   document.getElementById('cortesia-negocio').value = item.client?.nombre_negocio || 'N/A';
@@ -379,6 +504,7 @@ function seleccionarLicenciaTrial(item) {
   document.getElementById('cortesia-producto').value = item.tipo_producto || 'guardian_pos_lite';
   document.getElementById('cortesia-dispositivo').value = item.hardwareBinding?.tipo_dispositivo || 'android_tablet';
   document.getElementById('cortesia-hwid').value = item.hardwareBinding?.identificador_unico || '';
+  document.getElementById('cortesia-confirmar-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function generarNuevaPruebaCortesia() {
@@ -417,8 +543,7 @@ async function generarNuevaPruebaCortesia() {
   const res = await resp.json();
   if (resp.ok && res.exito) {
     alert(`Extensión aplicada con éxito.${res.correoEnviado ? '\nCorreo enviado al cliente.' : ''}`);
-    await inicializarPanel();
-    limpiarVistaTrial();
+    await refrescarVistaTrial(); // [CAMBIO] Refresca métricas y tabla al extender
   } else {
     alert('Error: ' + (res.error || 'No se pudo extender la vigencia.'));
   }

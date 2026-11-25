@@ -93,6 +93,12 @@ const LicenciaSchema = new mongoose.Schema({
         required: false 
     },
 
+    // [CAMBIO] Banderas para evitar envío duplicado de correos de expiración desde el cron
+    aviso_7d_enviado: { type: Boolean, default: false },
+    aviso_3d_enviado: { type: Boolean, default: false },
+    aviso_vencimiento_enviado: { type: Boolean, default: false },
+
+
     // Control de usuarios (administradores y cajeros)
     usuarios: [
         {
