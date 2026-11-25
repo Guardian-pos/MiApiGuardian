@@ -16,7 +16,7 @@ const enlacesMenu = document.querySelectorAll('.menu-lateral a');
 const vistas = document.querySelectorAll('.vista');
 
 enlacesMenu.forEach((enlace) => {
-  enlace.addEventListener('click', (evento) => {
+  enlace.addEventListener('click', async (evento) => {
     evento.preventDefault();
     enlacesMenu.forEach((item) => item.classList.remove('activo'));
     enlace.classList.add('activo');
@@ -24,8 +24,20 @@ enlacesMenu.forEach((enlace) => {
     vistas.forEach((vista) => vista.classList.remove('active'));
     const idVista = enlace.getAttribute('data-vista');
     const vistaMostrar = document.getElementById(idVista);
-    if (vistaMostrar) {
-      vistaMostrar.classList.add('active');
+    if (vistaMostrar) vistaMostrar.classList.add('active');
+
+    // [CAMBIO] Refresco o limpieza automática al cambiar de pestaña
+    if (idVista === 'vista-dashboard') {
+      await inicializarPanel();
+    } else if (idVista === 'vista-team') {
+      cancelarEdicionEmpleado();
+      await cargarEmpleadosTeam();
+    } else if (idVista === 'vista-clientes') {
+      limpiarVistaClientes();
+    } else if (idVista === 'vista-trial') {
+      limpiarVistaTrial();
+    } else if (idVista === 'vista-tokens') {
+      limpiarPantallaTokens();
     }
   });
 });
@@ -181,16 +193,28 @@ function aplicarPermisosOperador() {
   const esAdmin = sesionActual.usuarioId === 'EMP-ADMIN';
   const p = sesionActual.permisos || {};
 
+  // [CAMBIO] Helper unificado para mostrar contenido autorizado o aviso de acceso restringido en cada módulo
+  const toggleModulo = (idContenido, idBloqueo, permitido) => {
+    const c = document.getElementById(idContenido);
+    const b = document.getElementById(idBloqueo);
+    if (c) c.style.display = permitido ? 'block' : 'none';
+    if (b) b.style.display = permitido ? 'none' : 'block';
+  };
+
+  toggleModulo('dashboard-contenido-autorizado', 'dashboard-sin-permiso', esAdmin || !!p.dashboard);
+  toggleModulo('bloque-team-admin', 'team-sin-permiso', esAdmin);
+  toggleModulo('clientes-contenido-autorizado', 'clientes-sin-permiso', esAdmin || !!p.clientes);
+  toggleModulo('trial-contenido-autorizado', 'trial-sin-permiso', esAdmin || !!p.cortesia);
+  toggleModulo('tokens-contenido-autorizado', 'tokens-sin-permiso', esAdmin || !!p.tokens);
+  toggleModulo('tareas-contenido-autorizado', 'tareas-sin-permiso', esAdmin || !!p.tareas);
+  toggleModulo('reportes-contenido-autorizado', 'reportes-sin-permiso', esAdmin || !!p.reportes);
+  toggleModulo('settings-contenido-autorizado', 'settings-sin-permiso', esAdmin || !!p.settings);
+
   document.getElementById('opt-renovacion').style.display = esAdmin || p.renovacion ? 'block' : 'none';
   document.getElementById('opt-reactivacion').style.display = esAdmin || p.reactivacion ? 'block' : 'none';
   document.getElementById('opt-telefonica').style.display = esAdmin || p.telefonica ? 'block' : 'none';
-  document.getElementById('bloque-team-admin').style.display = esAdmin ? 'block' : 'none';
-
-  // [CAMBIO] Bloqueo visual del módulo Tokens según permiso del empleado
-  const tieneTokens = esAdmin || !!p.tokens;
-  document.getElementById('tokens-contenido-autorizado').style.display = tieneTokens ? 'block' : 'none';
-  document.getElementById('tokens-sin-permiso').style.display = tieneTokens ? 'none' : 'block';
 }
+
 
 // =========================================================
 // CLIENTES, LICENCIAS Y TRIAL
@@ -324,9 +348,133 @@ async function ejecutarRenovacionManual() {
 function ejecutarReactivacion() { alert('Hardware actualizado con éxito.'); }
 function generarClaveTelefonica() { alert('Clave offline generada y enviada.'); }
 
+// [CAMBIO] Pegar aquí limpiarVistaClientes() y limpiarVistaTrial()
+function limpiarVistaClientes() {
+  itemLicenciaSeleccionado = null;
+  document.getElementById('input-buscar').value = '';
+  document.getElementById('lbl-num-cliente').innerText = '--';
+  document.getElementById('lbl-negocio').innerText = 'Realice una búsqueda...';
+  document.getElementById('lbl-contacto').innerText = '-';
+  document.getElementById('lbl-telefono').innerText = '-';
+  document.getElementById('lbl-correo').innerText = '-';
+  document.getElementById('tabla-productos').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;color:#a0a0ab;">Use el buscador superior para consultar un cliente.</td></tr>';
+  document.getElementById('selector-accion').value = '';
+  cambiarAccion();
+}
+
+function limpiarVistaTrial() {
+  document.getElementById('cortesia-num-cliente').value = '';
+  document.getElementById('cortesia-negocio').value = '';
+  document.getElementById('cortesia-license').value = '';
+  document.getElementById('cortesia-producto').value = '';
+  document.getElementById('cortesia-dispositivo').value = '';
+  document.getElementById('cortesia-hwid').value = '';
+  document.getElementById('cortesia-dias').value = '30';
+}
+
+
 // =========================================================
-// TEAM (EMPLEADOS)
+// TEAM (EMPLEADOS, CREDENCIALES Y FOTO COMPRIMIDA)
 // =========================================================
+let fotoEmpleadoBase64 = '';
+
+function procesarFotoEmpleado(input) {
+  const archivo = input.files && input.files[0];
+  if (!archivo) return;
+
+  const lector = new FileReader();
+  lector.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxDim = 220;
+      let w = img.width;
+      let h = img.height;
+      if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
+      else if (h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      fotoEmpleadoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+
+      const prev = document.getElementById('emp-foto-preview');
+      prev.src = fotoEmpleadoBase64;
+      prev.style.display = 'block';
+    };
+    img.src = e.target.result;
+  };
+  lector.readAsDataURL(archivo);
+}
+
+async function cargarEmpleadosTeam() {
+  if (!sesionActual || sesionActual.usuarioId !== 'EMP-ADMIN') return;
+  try {
+    const respEmp = await fetch(`${API_BASE}/api/empleados`);
+    listaGlobalEmpleados = await respEmp.json();
+    renderizarTarjetasTeam(listaGlobalEmpleados);
+    renderizarTablaEmpleados(listaGlobalEmpleados);
+  } catch (error) {
+    console.error('Error al cargar Team:', error);
+  }
+}
+
+function renderizarTarjetasTeam(empleados) {
+  const contenedor = document.getElementById('grid-tarjetas-team');
+  if (!contenedor) return;
+  contenedor.innerHTML = '';
+
+  empleados.forEach((emp) => {
+    const iniciales = (emp.nombre || 'OP').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase();
+    const avatarHtml = emp.foto
+      ? `<img src="${emp.foto}" class="tarjeta-id-foto" alt="${emp.nombre}">`
+      : `<div class="tarjeta-id-foto">${iniciales}</div>`;
+    const badgeEstado = emp.activo === false
+      ? '<span class="badge-estado badge-error">INACTIVO</span>'
+      : '<span class="badge-estado badge-ok">ACTIVO</span>';
+
+    const card = document.createElement('div');
+    card.className = 'tarjeta-id';
+    card.innerHTML = `
+      ${avatarHtml}
+      <div class="tarjeta-id-info">
+        <div class="tarjeta-id-header">
+          <h4>${emp.nombre}</h4>
+          ${badgeEstado}
+        </div>
+        <div class="tarjeta-id-sub">${emp.puesto || 'Operador'} · ${emp.usuarioId}</div>
+        <div class="tarjeta-id-datos">
+          <span><i class="bx bx-envelope"></i>${emp.correo}</span>
+          <span><i class="bx bx-phone"></i>${emp.telefonoPersonal || 'Sin teléfono'} ${emp.extension ? `· ${emp.extension}` : ''}</span>
+          <span><i class="bx bx-map"></i>${emp.direccion || 'Sin dirección'}</span>
+        </div>
+        <div class="tarjeta-id-acciones">
+          <button class="btn-exito" onclick="cargarDatosEdicion('${emp._id}')">Editar</button>
+          <button class="btn-secundario" style="padding:5px 9px;font-size:12px;" onclick="regenerarPassword('${emp._id}')">Nueva Pass</button>
+          <button class="btn-secundario" style="padding:5px 9px;font-size:12px;" onclick="enviarCorreoRealEmpleado('${emp._id}')">Correo</button>
+          ${emp.usuarioId !== 'EMP-ADMIN' ? `<button class="btn-peligro" onclick="eliminarEmpleado('${emp._id}')">Eliminar</button>` : ''}
+        </div>
+      </div>
+    `;
+    contenedor.appendChild(card);
+  });
+}
+
+function obtenerPermisosFormulario() {
+  return {
+    dashboard: document.getElementById('perm-dashboard').checked,
+    clientes: document.getElementById('perm-clientes').checked,
+    cortesia: document.getElementById('perm-cortesia').checked,
+    renovacion: document.getElementById('perm-renovacion').checked,
+    reactivacion: document.getElementById('perm-reactivacion').checked,
+    telefonica: document.getElementById('perm-telefonica').checked,
+    tokens: document.getElementById('perm-tokens').checked,
+    tareas: document.getElementById('perm-tareas').checked,
+    reportes: document.getElementById('perm-reportes').checked,
+    settings: document.getElementById('perm-settings').checked,
+  };
+}
+
 function procesarGuardarEmpleado() {
   if (empleadoEnEdicionId) guardarEdicionEmpleado();
   else registrarEmpleado();
@@ -335,27 +483,31 @@ function procesarGuardarEmpleado() {
 async function registrarEmpleado() {
   const nombre = document.getElementById('emp-nombre').value.trim();
   const correo = document.getElementById('emp-correo').value.trim();
-  const permisos = {
-    cortesia: document.getElementById('perm-cortesia').checked,
-    renovacion: document.getElementById('perm-renovacion').checked,
-    reactivacion: document.getElementById('perm-reactivacion').checked,
-    telefonica: document.getElementById('perm-telefonica').checked,
-    tokens: document.getElementById('perm-tokens').checked,     // [CAMBIO]
-    tareas: document.getElementById('perm-tareas').checked,     // [CAMBIO]
-    reportes: document.getElementById('perm-reportes').checked, // [CAMBIO]
-  };
   if (!nombre || !correo) return alert('Ingrese nombre y correo.');
+
+  const payload = {
+    nombre,
+    correo,
+    puesto: document.getElementById('emp-puesto').value.trim() || 'Operador',
+    telefonoPersonal: document.getElementById('emp-telefono').value.trim(),
+    extension: document.getElementById('emp-extension').value.trim(),
+    direccion: document.getElementById('emp-direccion').value.trim(),
+    contactoEmergencia: document.getElementById('emp-emergencia').value.trim(),
+    activo: document.getElementById('emp-activo').value === 'true',
+    foto: fotoEmpleadoBase64,
+    permisos: obtenerPermisosFormulario(),
+  };
 
   const resp = await fetch(`${API_BASE}/api/empleados/crear`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nombre, correo, permisos }),
+    body: JSON.stringify(payload),
   });
   const res = await resp.json();
   if (res.exito) {
     alert(`Empleado registrado: ${res.empleado.usuarioId} | Pass: ${res.empleado.password}`);
     cancelarEdicionEmpleado();
-    await inicializarPanel();
+    await cargarEmpleadosTeam();
   } else {
     alert('Error: ' + res.error);
   }
@@ -367,24 +519,48 @@ function cargarDatosEdicion(id) {
   empleadoEnEdicionId = id;
   document.getElementById('emp-nombre').value = emp.nombre || '';
   document.getElementById('emp-correo').value = emp.correo || '';
+  document.getElementById('emp-puesto').value = emp.puesto || '';
+  document.getElementById('emp-telefono').value = emp.telefonoPersonal || '';
+  document.getElementById('emp-extension').value = emp.extension || '';
+  document.getElementById('emp-direccion').value = emp.direccion || '';
+  document.getElementById('emp-emergencia').value = emp.contactoEmergencia || '';
+  document.getElementById('emp-activo').value = emp.activo === false ? 'false' : 'true';
+
+  fotoEmpleadoBase64 = emp.foto || '';
+  const prev = document.getElementById('emp-foto-preview');
+  if (fotoEmpleadoBase64) {
+    prev.src = fotoEmpleadoBase64;
+    prev.style.display = 'block';
+  } else {
+    prev.style.display = 'none';
+  }
+
   const p = emp.permisos || {};
-  document.getElementById('perm-cortesia').checked = !!p.cortesia;
-  document.getElementById('perm-renovacion').checked = !!p.renovacion;
-  document.getElementById('perm-reactivacion').checked = !!p.reactivacion;
-  document.getElementById('perm-telefonica').checked = !!p.telefonica;
-  document.getElementById('perm-tokens').checked = !!p.tokens;     // [CAMBIO]
-  document.getElementById('perm-tareas').checked = !!p.tareas;     // [CAMBIO]
-  document.getElementById('perm-reportes').checked = !!p.reportes; // [CAMBIO]
+  ['dashboard', 'clientes', 'cortesia', 'renovacion', 'reactivacion', 'telefonica', 'tokens', 'tareas', 'reportes', 'settings'].forEach((k) => {
+    const el = document.getElementById(`perm-${k}`);
+    if (el) el.checked = !!p[k];
+  });
+
   document.getElementById('btn-accion-empleado').innerText = 'Guardar Cambios';
   document.getElementById('btn-cancelar-edicion').style.display = 'inline-block';
+  document.getElementById('emp-nombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function cancelarEdicionEmpleado() {
   empleadoEnEdicionId = null;
-  document.getElementById('emp-nombre').value = '';
-  document.getElementById('emp-correo').value = '';
-  ['perm-cortesia', 'perm-renovacion', 'perm-reactivacion', 'perm-telefonica', 'perm-tokens', 'perm-tareas', 'perm-reportes'].forEach((id) => {
-    document.getElementById(id).checked = false;
+  fotoEmpleadoBase64 = '';
+  ['emp-nombre', 'emp-correo', 'emp-puesto', 'emp-telefono', 'emp-extension', 'emp-direccion', 'emp-emergencia', 'emp-foto-input'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const act = document.getElementById('emp-activo');
+  if (act) act.value = 'true';
+  const prev = document.getElementById('emp-foto-preview');
+  if (prev) prev.style.display = 'none';
+
+  ['dashboard', 'clientes', 'cortesia', 'renovacion', 'reactivacion', 'telefonica', 'tokens', 'tareas', 'reportes', 'settings'].forEach((k) => {
+    const el = document.getElementById(`perm-${k}`);
+    if (el) el.checked = false;
   });
   document.getElementById('btn-accion-empleado').innerText = 'Generar Cuenta de Empleado';
   document.getElementById('btn-cancelar-edicion').style.display = 'none';
@@ -393,39 +569,48 @@ function cancelarEdicionEmpleado() {
 async function guardarEdicionEmpleado() {
   const nombre = document.getElementById('emp-nombre').value.trim();
   const correo = document.getElementById('emp-correo').value.trim();
-  const permisos = {
-    cortesia: document.getElementById('perm-cortesia').checked,
-    renovacion: document.getElementById('perm-renovacion').checked,
-    reactivacion: document.getElementById('perm-reactivacion').checked,
-    telefonica: document.getElementById('perm-telefonica').checked,
-    tokens: document.getElementById('perm-tokens').checked,     // [CAMBIO]
-    tareas: document.getElementById('perm-tareas').checked,     // [CAMBIO]
-    reportes: document.getElementById('perm-reportes').checked, // [CAMBIO]
+  if (!nombre || !correo) return alert('Ingrese nombre y correo.');
+
+  const payload = {
+    nombre,
+    correo,
+    puesto: document.getElementById('emp-puesto').value.trim() || 'Operador',
+    telefonoPersonal: document.getElementById('emp-telefono').value.trim(),
+    extension: document.getElementById('emp-extension').value.trim(),
+    direccion: document.getElementById('emp-direccion').value.trim(),
+    contactoEmergencia: document.getElementById('emp-emergencia').value.trim(),
+    activo: document.getElementById('emp-activo').value === 'true',
+    foto: fotoEmpleadoBase64,
+    permisos: obtenerPermisosFormulario(),
   };
+
   const resp = await fetch(`${API_BASE}/api/empleados/actualizar/${empleadoEnEdicionId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nombre, correo, permisos }),
+    body: JSON.stringify(payload),
   });
   if (resp.ok) {
     alert('Empleado actualizado.');
     cancelarEdicionEmpleado();
-    await inicializarPanel();
+    await cargarEmpleadosTeam();
   }
 }
 
 function renderizarTablaEmpleados(empleados) {
   const tbody = document.getElementById('tabla-empleados');
+  if (!tbody) return;
   tbody.innerHTML = '';
   empleados.forEach((emp) => {
-    const p = emp.permisos || {};
+    const badge = emp.activo === false
+      ? '<span class="badge-estado badge-error">Inactivo</span>'
+      : '<span class="badge-estado badge-ok">Activo</span>';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-family:monospace;color:#a78bfa;">${emp.usuarioId}</td>
-      <td>${emp.nombre}</td>
-      <td>${emp.correo}</td>
+      <td>${emp.nombre}<br><small style="color:#a0a0ab;">${emp.puesto || 'Operador'}</small></td>
+      <td>${emp.telefonoPersonal || '-'}<br><small style="color:#a0a0ab;">${emp.extension || ''}</small></td>
       <td style="font-family:monospace;">${emp.password}</td>
-      <td style="font-size:12px;color:#a0a0ab;">Cort:${p.cortesia ? 'Sí' : 'No'} | Ren:${p.renovacion ? 'Sí' : 'No'} | Tok:${p.tokens ? 'Sí' : 'No'}</td>
+      <td>${badge}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn-exito" onclick="cargarDatosEdicion('${emp._id}')">Editar</button>
         ${emp.usuarioId !== 'EMP-ADMIN' ? `<button class="btn-peligro" onclick="eliminarEmpleado('${emp._id}')">Eliminar</button>` : ''}
@@ -437,16 +622,35 @@ function renderizarTablaEmpleados(empleados) {
 
 function filtrarEmpleados() {
   const q = document.getElementById('input-buscar-emp').value.toLowerCase().trim();
-  if (!q) return renderizarTablaEmpleados(listaGlobalEmpleados);
-  renderizarTablaEmpleados(
-    listaGlobalEmpleados.filter((e) => e.nombre.toLowerCase().includes(q) || e.correo.toLowerCase().includes(q) || e.usuarioId.toLowerCase().includes(q))
-  );
+  const filtrados = !q
+    ? listaGlobalEmpleados
+    : listaGlobalEmpleados.filter((e) =>
+        [e.nombre, e.correo, e.usuarioId, e.puesto].some((v) => v && String(v).toLowerCase().includes(q))
+      );
+  renderizarTarjetasTeam(filtrados);
+  renderizarTablaEmpleados(filtrados);
+}
+
+async function regenerarPassword(id) {
+  if (!confirm('¿Generar una nueva contraseña para este operador?')) return;
+  const resp = await fetch(`${API_BASE}/api/empleados/regenerar-password/${id}`, { method: 'PUT' });
+  const res = await resp.json();
+  if (res.exito) {
+    alert(`Nueva contraseña: ${res.empleado.password}`);
+    await cargarEmpleadosTeam();
+  }
+}
+
+async function enviarCorreoRealEmpleado(id) {
+  const resp = await fetch(`${API_BASE}/api/empleados/enviar-correo/${id}`, { method: 'POST' });
+  const res = await resp.json();
+  alert(res.exito ? '¡Correo enviado al empleado!' : 'Error: ' + (res.error || 'Desconocido'));
 }
 
 async function eliminarEmpleado(id) {
   if (!confirm('¿Eliminar a este operador?')) return;
   const resp = await fetch(`${API_BASE}/api/empleados/${id}`, { method: 'DELETE' });
-  if (resp.ok) await inicializarPanel();
+  if (resp.ok) await cargarEmpleadosTeam();
 }
 
 // =========================================================

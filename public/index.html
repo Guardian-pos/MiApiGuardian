@@ -102,52 +102,85 @@
                 </section>
             </div>
 
-            <!-- VISTA 2: TEAM (EMPLEADOS DEL PANEL) -->
+               <!-- VISTA 2: TEAM (CREDENCIALES ARRIBA + CAPTURA ABAJO) -->
             <div id="vista-team" class="vista">
                 <div class="cabecera-metricas">
                     <h2>Equipo de Trabajo (Team)</h2>
+                    <button class="btn-actualizar" onclick="cargarEmpleadosTeam()">
+                        <i class="bx bx-refresh"></i>
+                        <span>Actualizar Equipo</span>
+                    </button>
                 </div>
-                <div id="bloque-team-admin" class="tarjeta-panel">
-                    <h3>Alta / Edición de Operadores</h3>
-                    <div class="grid-formulario" style="margin-bottom: 14px;">
-                        <div class="campo-grupo">
-                            <label>Nombre del Operador</label>
-                            <input type="text" id="emp-nombre" placeholder="Ej. Juan Pérez">
+
+                <div id="team-sin-permiso" class="tarjeta-panel" style="display: none; border-color: #ef4444;">
+                    <h3 style="color: #f87171;">Acceso Restringido</h3>
+                    <p style="color: #e2e8f0; font-size: 14px;">Solo el Administrador Principal puede gestionar el equipo.</p>
+                </div>
+
+                <div id="bloque-team-admin">
+                    <!-- PARTE SUPERIOR: CREDENCIALES DEL EQUIPO -->
+                    <div id="grid-tarjetas-team" class="grid-team-cards"></div>
+
+                    <!-- PARTE INFERIOR: FORMULARIO DE ALTA / EDICIÓN -->
+                    <div class="tarjeta-panel">
+                        <h3>Alta / Edición de Operadores</h3>
+                        <div class="grid-formulario" style="margin-bottom: 14px;">
+                            <div class="campo-grupo"><label>Nombre Completo</label><input type="text" id="emp-nombre" placeholder="Ej. Juan Pérez"></div>
+                            <div class="campo-grupo"><label>Correo Electrónico</label><input type="email" id="emp-correo" placeholder="operador@guardianpos.com"></div>
+                            <div class="campo-grupo"><label>Puesto / Área</label><input type="text" id="emp-puesto" placeholder="Ej. Soporte Técnico"></div>
+                            <div class="campo-grupo"><label>Teléfono Personal (Uso Interno)</label><input type="text" id="emp-telefono" placeholder="Ej. 55 1234 5678"></div>
+                            <div class="campo-grupo"><label>Extensión</label><input type="text" id="emp-extension" placeholder="Ej. Ext. 102"></div>
+                            <div class="campo-grupo"><label>Ciudad / Dirección Breve</label><input type="text" id="emp-direccion" placeholder="Ej. CDMX — Col. Centro"></div>
+                            <div class="campo-grupo"><label>Contacto de Emergencia</label><input type="text" id="emp-emergencia" placeholder="Nombre y teléfono"></div>
+                            <div class="campo-grupo">
+                                <label>Estatus</label>
+                                <select id="emp-activo">
+                                    <option value="true">Activo</option>
+                                    <option value="false">Inactivo (Suspendido)</option>
+                                </select>
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Foto de Credencial</label>
+                                <input type="file" id="emp-foto-input" accept="image/*" onchange="procesarFotoEmpleado(this)">
+                                <img id="emp-foto-preview" class="preview-foto-emp" alt="Vista previa">
+                            </div>
                         </div>
-                        <div class="campo-grupo">
-                            <label>Correo Electrónico</label>
-                            <input type="email" id="emp-correo" placeholder="operador@guardianpos.com">
+
+                        <div class="checks-permisos">
+                            <label><input type="checkbox" id="perm-dashboard"> Ver Dashboard / Métricas</label>
+                            <label><input type="checkbox" id="perm-clientes"> Consultar Clientes</label>
+                            <label><input type="checkbox" id="perm-cortesia"> Trial / Cortesías</label>
+                            <label><input type="checkbox" id="perm-renovacion"> Renovación Manual</label>
+                            <label><input type="checkbox" id="perm-reactivacion"> Reactivación HWID</label>
+                            <label><input type="checkbox" id="perm-telefonica"> Activación Telefónica</label>
+                            <label><input type="checkbox" id="perm-tokens"> Gestión de Tokens</label>
+                            <label><input type="checkbox" id="perm-tareas"> Módulo Tareas</label>
+                            <label><input type="checkbox" id="perm-reportes"> Módulo Reportes</label>
+                            <label><input type="checkbox" id="perm-settings"> Configuración (Settings)</label>
                         </div>
+
+                        <div style="display: flex; gap: 10px; margin-bottom: 18px;">
+                            <button id="btn-accion-empleado" class="btn-actualizar" onclick="procesarGuardarEmpleado()">Generar Cuenta de Empleado</button>
+                            <button id="btn-cancelar-edicion" class="btn-peligro" style="display: none;" onclick="cancelarEdicionEmpleado()">Cancelar Edición</button>
+                        </div>
+
+                        <div class="barra-busqueda">
+                            <input type="text" id="input-buscar-emp" placeholder="Buscar empleado por nombre, ID, puesto o correo..." oninput="filtrarEmpleados()">
+                        </div>
+                        <table class="tabla-oscura">
+                            <thead>
+                                <tr>
+                                    <th>ID Usuario</th>
+                                    <th>Nombre / Puesto</th>
+                                    <th>Teléfono / Ext.</th>
+                                    <th>Password</th>
+                                    <th>Estatus</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-empleados"></tbody>
+                        </table>
                     </div>
-                    <div class="checks-permisos">
-                        <label><input type="checkbox" id="perm-cortesia"> Extender Cortesías / Pruebas</label>
-                        <label><input type="checkbox" id="perm-renovacion"> Renovación por Pago Manual</label>
-                        <label><input type="checkbox" id="perm-reactivacion"> Reactivación de Hardware</label>
-                        <label><input type="checkbox" id="perm-telefonica"> Activación Telefónica / Offline</label>
-                        <label><input type="checkbox" id="perm-tokens"> Gestión y Abono de Tokens</label>
-                        <label><input type="checkbox" id="perm-tareas"> Módulo Tareas</label>
-                        <label><input type="checkbox" id="perm-reportes"> Módulo Reportes</label>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-bottom: 18px;">
-                        <button id="btn-accion-empleado" class="btn-actualizar" onclick="procesarGuardarEmpleado()">Generar Cuenta de Empleado</button>
-                        <button id="btn-cancelar-edicion" class="btn-peligro" style="display: none;" onclick="cancelarEdicionEmpleado()">Cancelar Edición</button>
-                    </div>
-                    <div class="barra-busqueda">
-                        <input type="text" id="input-buscar-emp" placeholder="Buscar empleado por nombre, ID o correo..." oninput="filtrarEmpleados()">
-                    </div>
-                    <table class="tabla-oscura">
-                        <thead>
-                            <tr>
-                                <th>ID Usuario</th>
-                                <th>Nombre</th>
-                                <th>Correo</th>
-                                <th>Password</th>
-                                <th>Permisos</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-empleados"></tbody>
-                    </table>
                 </div>
             </div>
 

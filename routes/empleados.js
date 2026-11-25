@@ -15,6 +15,10 @@ router.post('/login', async (req, res) => {
         if (!empleado) {
             return res.status(401).json({ exito: false, error: "Credenciales incorrectas." });
         }
+        // [CAMBIO] Bloquear acceso si el operador fue marcado como inactivo
+        if (empleado.usuarioId !== 'EMP-ADMIN' && empleado.activo === false) {
+            return res.status(403).json({ exito: false, error: "Tu cuenta está inactiva. Contacta al administrador." });
+        }
 
         res.json({ exito: true, mensaje: "Autenticación exitosa", empleado });
     } catch (error) {
@@ -35,9 +39,19 @@ router.get('/', async (req, res) => {
 // RUTA: Registrar un nuevo empleado / operador
 router.post('/crear', async (req, res) => {
     try {
-        const { nombre, correo, permisos } = req.body;
+        const {
+            nombre,
+            correo,
+            puesto,
+            telefonoPersonal,
+            extension,
+            direccion,
+            contactoEmergencia,
+            foto,
+            activo,
+            permisos
+        } = req.body;
 
-        // Generar ID y contraseña automáticos si no vienen definidos
         const randomNum = Math.floor(1000 + Math.random() * 9000);
         const usuarioId = req.body.usuarioId || `EMP-${randomNum}`;
         
@@ -55,7 +69,25 @@ router.post('/crear', async (req, res) => {
             nombre,
             correo,
             password,
-            permisos: permisos || { cortesia: false, renovacion: false, reactivacion: false, telefonica: true }
+            puesto: puesto || 'Operador',                     // [CAMBIO]
+            telefonoPersonal: telefonoPersonal || '',         // [CAMBIO]
+            extension: extension || '',                       // [CAMBIO]
+            direccion: direccion || '',                       // [CAMBIO]
+            contactoEmergencia: contactoEmergencia || '',     // [CAMBIO]
+            foto: foto || '',                                 // [CAMBIO]
+            activo: activo !== undefined ? Boolean(activo) : true, // [CAMBIO]
+            permisos: permisos || {
+                dashboard: false,
+                clientes: false,
+                cortesia: false,
+                renovacion: false,
+                reactivacion: false,
+                telefonica: true,
+                tokens: false,
+                tareas: false,
+                reportes: false,
+                settings: false
+            }
         });
 
         const empleadoGuardado = await nuevoEmpleado.save();
@@ -64,6 +96,52 @@ router.post('/crear', async (req, res) => {
             mensaje: "Empleado registrado correctamente.",
             empleado: empleadoGuardado
         });
+    } catch (error) {
+        res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// RUTA: Actualizar datos y permisos de un empleado existente
+router.put('/actualizar/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            nombre,
+            correo,
+            puesto,
+            telefonoPersonal,
+            extension,
+            direccion,
+            contactoEmergencia,
+            foto,
+            activo,
+            permisos
+        } = req.body;
+
+        const updateData = {
+            nombre,
+            correo,
+            puesto,
+            telefonoPersonal,
+            extension,
+            direccion,
+            contactoEmergencia,
+            activo,
+            permisos
+        };
+        if (foto !== undefined) updateData.foto = foto; // [CAMBIO]
+
+        const empleadoActualizado = await Empleado.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true }
+        );
+
+        if (!empleadoActualizado) {
+            return res.status(404).json({ exito: false, error: "Empleado no encontrado." });
+        }
+
+        res.json({ exito: true, mensaje: "Empleado actualizado correctamente.", empleado: empleadoActualizado });
     } catch (error) {
         res.status(500).json({ exito: false, error: error.message });
     }
