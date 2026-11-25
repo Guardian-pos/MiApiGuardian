@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Licencia = require('../models/Licencia');
+const Empleado = require('../models/Empleado'); // [CAMBIO]
+const { Resend } = require('resend');           // [CAMBIO]
 const bcrypt = require('bcrypt');
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null; // [CAMBIO]
 
 // RUTA: Registrar una nueva licencia / orden de compra (simulando la pasarela o compra web)
 router.post('/crear', async (req, res) => {
@@ -54,23 +58,65 @@ router.get('/', async (req, res) => {
 router.put('/actualizar/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { fecha_expiracion, estado, client, metodo_pago, hardwareBinding } = req.body;
+        const {
+            fecha_expiracion,
+            estado,
+            client,
+            metodo_pago,
+            hardwareBinding,
+            adminId,          // [CAMBIO]
+            tipoOperacion,    // [CAMBIO] 'RENOVACION' | 'CORTESIA' | 'REACTIVACION'
+            confirmarCliente, // [CAMBIO]
+            motivoCortesia,   // [CAMBIO]
+            montoPagado       // [CAMBIO]
+        } = req.body;
+
+        // [CAMBIO] Validación real de permisos en MongoDB
+        if (adminId && adminId !== 'EMP-ADMIN') {
+            const empleado = await Empleado.findOne({ usuarioId: String(adminId).trim() });
+            const p = empleado?.permisos || {};
+            const autorizado =
+                (tipoOperacion === 'RENOVACION' && p.renovacion) ||
+                (tipoOperacion === 'CORTESIA' && p.cortesia) ||
+                (tipoOperacion === 'REACTIVACION' && p.reactivacion);
+
+            if (!empleado || (tipoOperacion && !autorizado)) {
+                return res.status(403).json({
+                    exito: false,
+                    error: "No tienes permiso autorizado para realizar esta operación."
+                });
+            }
+        }
 
         const licencia = await Licencia.findById(id);
         if (!licencia) {
             return res.status(404).json({ exito: false, error: "Licencia no encontrada en el sistema." });
         }
 
+        // [CAMBIO] Validación cruzada de número de cliente
+        if (confirmarCliente !== undefined) {
+            const numReal = String(licencia.client?.numero_cliente || '').trim().toLowerCase();
+            const numConf = String(confirmarCliente || '').trim().toLowerCase();
+            if (!numConf || numConf !== numReal) {
+                return res.status(400).json({
+                    exito: false,
+                    error: "El número de cliente confirmado no coincide con la licencia seleccionada."
+                });
+            }
+        }
+
         if (fecha_expiracion) licencia.fecha_expiracion = fecha_expiracion;
         if (estado) licencia.estado = estado;
-        
+
         if (metodo_pago) {
+            if (!licencia.metodo_pago) licencia.metodo_pago = {};
             if (metodo_pago.pasarela) licencia.metodo_pago.pasarela = metodo_pago.pasarela;
             if (metodo_pago.comprobante_url) licencia.metodo_pago.comprobante_url = metodo_pago.comprobante_url;
             if (metodo_pago.stripe_customer_id) licencia.metodo_pago.stripe_customer_id = metodo_pago.stripe_customer_id;
         }
 
         if (hardwareBinding) {
+            if (!licencia.hardwareBinding) licencia.hardwareBinding = {};
             if (hardwareBinding.tipo_dispositivo) licencia.hardwareBinding.tipo_dispositivo = hardwareBinding.tipo_dispositivo;
             if (hardwareBinding.identificador_unico) licencia.hardwareBinding.identificador_unico = hardwareBinding.identificador_unico;
         }
@@ -85,9 +131,50 @@ router.put('/actualizar/:id', async (req, res) => {
         licencia.updatedAt = Date.now();
         const licenciaActualizada = await licencia.save();
 
+        // [CAMBIO] Enviar correo de confirmación al cliente si es Renovación o Cortesía
+        let correoEnviado = false;
+        const correoDestino = licenciaActualizada.client?.correo ? String(licenciaActualizada.client.correo).trim() : '';
+        if (resend && correoDestino && (tipoOperacion === 'RENOVACION' || tipoOperacion === 'CORTESIA')) {
+            try {
+                const fechaVigencia = new Date(licenciaActualizada.fecha_expiracion).toLocaleDateString('es-MX', {
+                    timeZone: 'America/Mexico_City',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                });
+                const titulo = tipoOperacion === 'RENOVACION' ? 'Renovación de Licencia Confirmada' : 'Extensión de Vigencia / Cortesía';
+                const detalleExtra = tipoOperacion === 'RENOVACION'
+                    ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong>Referencia:</strong></td><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">${metodo_pago?.comprobante_url || 'N/A'} ${montoPagado ? `($${Number(montoPagado).toFixed(2)} MXN)` : ''}</td></tr>`
+                    : `<tr><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong>Motivo:</strong></td><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">${motivoCortesia || 'Extensión autorizada'}</td></tr>`;
+
+                const { error } = await resend.emails.send({
+                    from: 'Guardián POS <soporte@guardianpos.mx>',
+                    to: [correoDestino],
+                    subject: `${licenciaActualizada.client?.nombre_negocio || 'Cliente'} - ${titulo} (Guardián POS)`,
+                    html: `
+                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1F2937; border: 1px solid #E5E7EB; border-radius: 10px;">
+                        <h2 style="margin: 0 0 10px 0; color: #7C3AED;">Guardián POS — ${titulo}</h2>
+                        <p style="font-size: 14px;">¡Hola <strong>${licenciaActualizada.client?.nombre_negocio || ''}</strong>! Tu licencia ha sido actualizada correctamente.</p>
+                        <table style="width:100%; border-collapse:collapse; margin: 14px 0; font-size: 13px;">
+                          <tr><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong>Número de Cliente:</strong></td><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;">${licenciaActualizada.client?.numero_cliente || 'N/A'}</td></tr>
+                          <tr><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong>Clave de Licencia:</strong></td><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;font-family:monospace;">${licenciaActualizada.licenseKey}</td></tr>
+                          <tr><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong>Nueva Vigencia:</strong></td><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong style="color:#059669;">${fechaVigencia}</strong></td></tr>
+                          ${detalleExtra}
+                        </table>
+                        <p style="font-size: 13px; color: #4B5563;">Este correo fue enviado por cortesía de <strong>Guardián POS</strong>. ¡Gracias por seguir trabajando con nosotros!</p>
+                      </div>
+                    `
+                });
+                correoEnviado = !error;
+            } catch (errCorreo) {
+                console.error('>>> [CORREO LICENCIA ERROR]:', errCorreo);
+            }
+        }
+
         res.status(200).json({
             exito: true,
             mensaje: "Licencia actualizada y extendida correctamente.",
+            correoEnviado,
             datos: licenciaActualizada
         });
     } catch (error) {

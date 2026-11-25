@@ -290,65 +290,16 @@ function cambiarAccion() {
   document.getElementById('form-telefonica').style.display = val === 'telefonica' ? 'block' : 'none';
 }
 
-async function generarNuevaPruebaCortesia() {
-  if (!itemLicenciaSeleccionado) return alert('Seleccione un cliente y licencia en la pestaña Clientes.');
-  const dias = parseInt(document.getElementById('cortesia-dias').value, 10);
-  const hwid = document.getElementById('cortesia-hwid').value.trim();
-  const base = new Date(itemLicenciaSeleccionado.fecha_expiracion) > new Date() ? new Date(itemLicenciaSeleccionado.fecha_expiracion) : new Date();
-  base.setDate(base.getDate() + dias);
-
-  const resp = await fetch(`${API_BASE}/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      estado: 'activa',
-      fecha_expiracion: base.toISOString(),
-      fecha_limite_pago: base.toISOString(),
-      hardwareBinding: {
-        tipo_dispositivo: itemLicenciaSeleccionado.hardwareBinding?.tipo_dispositivo || 'android_tablet',
-        identificador_unico: hwid || itemLicenciaSeleccionado.hardwareBinding?.identificador_unico || null,
-      },
-    }),
-  });
-  if (resp.ok) {
-    alert('Extensión de vigencia aplicada con éxito.');
-    await inicializarPanel();
-  } else {
-    alert('Error al extender vigencia.');
-  }
+async function refrescarVistaClientes() {
+  await inicializarPanel();
+  limpiarVistaClientes();
 }
 
-async function ejecutarRenovacionManual() {
-  if (!itemLicenciaSeleccionado) return alert('Seleccione una licencia arriba.');
-  const refPago = document.getElementById('input-ref-pago').value.trim();
-  if (!refPago) return alert('Ingrese la referencia de pago.');
-
-  const base = new Date(itemLicenciaSeleccionado.fecha_expiracion) > new Date() ? new Date(itemLicenciaSeleccionado.fecha_expiracion) : new Date();
-  base.setDate(base.getDate() + 30);
-
-  const resp = await fetch(`${API_BASE}/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      estado: 'activa',
-      fecha_expiracion: base.toISOString(),
-      fecha_limite_pago: base.toISOString(),
-      metodo_pago: { pasarela: 'transferencia_manual', comprobante_url: refPago },
-    }),
-  });
-  if (resp.ok) {
-    alert('Renovación (+30 días) aplicada con éxito.');
-    document.getElementById('input-ref-pago').value = '';
-    await inicializarPanel();
-  } else {
-    alert('Error al renovar licencia.');
-  }
+async function refrescarVistaTrial() {
+  await inicializarPanel();
+  limpiarVistaTrial();
 }
 
-function ejecutarReactivacion() { alert('Hardware actualizado con éxito.'); }
-function generarClaveTelefonica() { alert('Clave offline generada y enviada.'); }
-
-// [CAMBIO] Pegar aquí limpiarVistaClientes() y limpiarVistaTrial()
 function limpiarVistaClientes() {
   itemLicenciaSeleccionado = null;
   document.getElementById('input-buscar').value = '';
@@ -360,10 +311,24 @@ function limpiarVistaClientes() {
   document.getElementById('tabla-productos').innerHTML =
     '<tr><td colspan="6" style="text-align:center;color:#a0a0ab;">Use el buscador superior para consultar un cliente.</td></tr>';
   document.getElementById('selector-accion').value = '';
+  document.getElementById('input-license-renov').value = '';
+  document.getElementById('input-ref-pago').value = '';
+  document.getElementById('renov-monto').value = '';
+  document.getElementById('renov-confirmar-cliente').value = '';
+  document.getElementById('renov-dias').value = '30';
+  document.getElementById('input-license-reac').value = '';
+  document.getElementById('input-hwid-reac').value = '';
+  document.getElementById('input-hwid-tel').value = '';
   cambiarAccion();
 }
 
+let itemTrialSeleccionado = null;
+
 function limpiarVistaTrial() {
+  itemTrialSeleccionado = null;
+  document.getElementById('trial-input-buscar').value = '';
+  document.getElementById('tabla-trial-resultados').innerHTML =
+    '<tr><td colspan="5" style="text-align:center;color:#a0a0ab;">Busca un cliente arriba para seleccionar su licencia.</td></tr>';
   document.getElementById('cortesia-num-cliente').value = '';
   document.getElementById('cortesia-negocio').value = '';
   document.getElementById('cortesia-license').value = '';
@@ -371,6 +336,134 @@ function limpiarVistaTrial() {
   document.getElementById('cortesia-dispositivo').value = '';
   document.getElementById('cortesia-hwid').value = '';
   document.getElementById('cortesia-dias').value = '30';
+  document.getElementById('cortesia-motivo').value = '';
+  document.getElementById('cortesia-confirmar-cliente').value = '';
+}
+
+function buscarClienteTrial() {
+  const q = document.getElementById('trial-input-buscar').value.toLowerCase().trim();
+  const tbody = document.getElementById('tabla-trial-resultados');
+  if (!q) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#a0a0ab;">Ingrese un criterio de búsqueda.</td></tr>';
+    return;
+  }
+  const filtrados = listaGlobalLicencias.filter((item) => {
+    const c = item.client || {};
+    return [c.numero_cliente, c.nombre_negocio, c.correo, item.licenseKey]
+      .some((v) => v && String(v).toLowerCase().includes(q));
+  });
+  if (filtrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#a0a0ab;">Sin resultados.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  filtrados.forEach((item) => {
+    const fechaText = item.fecha_expiracion ? new Date(item.fecha_expiracion).toLocaleDateString('es-MX', { timeZone: 'UTC' }) : 'N/A';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="radio" name="sel-trial" onclick='seleccionarLicenciaTrial(${JSON.stringify(item)})'></td>
+      <td>${item.client?.numero_cliente || 'CLI-S/N'}</td>
+      <td>${item.client?.nombre_negocio || '-'}</td>
+      <td style="font-family:monospace;color:#a78bfa;">${item.licenseKey}</td>
+      <td>${fechaText}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function seleccionarLicenciaTrial(item) {
+  itemTrialSeleccionado = item;
+  document.getElementById('cortesia-num-cliente').value = item.client?.numero_cliente || 'CLI-S/N';
+  document.getElementById('cortesia-negocio').value = item.client?.nombre_negocio || 'N/A';
+  document.getElementById('cortesia-license').value = item.licenseKey;
+  document.getElementById('cortesia-producto').value = item.tipo_producto || 'guardian_pos_lite';
+  document.getElementById('cortesia-dispositivo').value = item.hardwareBinding?.tipo_dispositivo || 'android_tablet';
+  document.getElementById('cortesia-hwid').value = item.hardwareBinding?.identificador_unico || '';
+}
+
+async function generarNuevaPruebaCortesia() {
+  if (!itemTrialSeleccionado) return alert('Busca y selecciona una licencia arriba.');
+  const motivo = document.getElementById('cortesia-motivo').value;
+  const confirmarCliente = document.getElementById('cortesia-confirmar-cliente').value.trim();
+  const numReal = String(itemTrialSeleccionado.client?.numero_cliente || '').trim();
+
+  if (!motivo) return alert('Selecciona el motivo de la cortesía.');
+  if (!confirmarCliente || confirmarCliente.toLowerCase() !== numReal.toLowerCase()) {
+    return alert(`El número de cliente confirmado no coincide (${numReal}).`);
+  }
+
+  const dias = parseInt(document.getElementById('cortesia-dias').value, 10);
+  const hwid = document.getElementById('cortesia-hwid').value.trim();
+  const base = new Date(itemTrialSeleccionado.fecha_expiracion) > new Date() ? new Date(itemTrialSeleccionado.fecha_expiracion) : new Date();
+  base.setDate(base.getDate() + dias);
+
+  const resp = await fetch(`${API_BASE}/api/licencias/actualizar/${itemTrialSeleccionado._id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminId: sesionActual?.usuarioId || '',
+      tipoOperacion: 'CORTESIA',
+      confirmarCliente,
+      motivoCortesia: motivo,
+      estado: 'prueba_activa',
+      fecha_expiracion: base.toISOString(),
+      fecha_limite_pago: base.toISOString(),
+      hardwareBinding: {
+        tipo_dispositivo: itemTrialSeleccionado.hardwareBinding?.tipo_dispositivo || 'android_tablet',
+        identificador_unico: hwid || itemTrialSeleccionado.hardwareBinding?.identificador_unico || null,
+      },
+    }),
+  });
+  const res = await resp.json();
+  if (resp.ok && res.exito) {
+    alert(`Extensión aplicada con éxito.${res.correoEnviado ? '\nCorreo enviado al cliente.' : ''}`);
+    await inicializarPanel();
+    limpiarVistaTrial();
+  } else {
+    alert('Error: ' + (res.error || 'No se pudo extender la vigencia.'));
+  }
+}
+
+async function ejecutarRenovacionManual() {
+  if (!itemLicenciaSeleccionado) return alert('Seleccione una licencia arriba.');
+  const refPago = document.getElementById('input-ref-pago').value.trim();
+  const monto = Number(document.getElementById('renov-monto').value);
+  const dias = parseInt(document.getElementById('renov-dias').value, 10) || 30;
+  const metodo = document.getElementById('renov-metodo').value;
+  const confirmarCliente = document.getElementById('renov-confirmar-cliente').value.trim();
+  const numReal = String(itemLicenciaSeleccionado.client?.numero_cliente || '').trim();
+
+  if (!refPago) return alert('Ingrese la referencia o comprobante de pago.');
+  if (!monto || monto <= 0) return alert('Ingrese el monto pagado.');
+  if (!confirmarCliente || confirmarCliente.toLowerCase() !== numReal.toLowerCase()) {
+    return alert(`El número de cliente confirmado no coincide (${numReal}).`);
+  }
+
+  const base = new Date(itemLicenciaSeleccionado.fecha_expiracion) > new Date() ? new Date(itemLicenciaSeleccionado.fecha_expiracion) : new Date();
+  base.setDate(base.getDate() + dias);
+
+  const resp = await fetch(`${API_BASE}/api/licencias/actualizar/${itemLicenciaSeleccionado._id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminId: sesionActual?.usuarioId || '',
+      tipoOperacion: 'RENOVACION',
+      confirmarCliente,
+      montoPagado: monto,
+      estado: 'licencia_activa',
+      fecha_expiracion: base.toISOString(),
+      fecha_limite_pago: base.toISOString(),
+      metodo_pago: { pasarela: metodo, comprobante_url: refPago },
+    }),
+  });
+  const res = await resp.json();
+  if (resp.ok && res.exito) {
+    alert(`Renovación (+${dias} días) aplicada con éxito.${res.correoEnviado ? '\nCorreo enviado al cliente.' : ''}`);
+    await inicializarPanel();
+    limpiarVistaClientes();
+  } else {
+    alert('Error: ' + (res.error || 'No se pudo renovar la licencia.'));
+  }
 }
 
 
@@ -409,6 +502,7 @@ function procesarFotoEmpleado(input) {
 
 async function cargarEmpleadosTeam() {
   if (!sesionActual || sesionActual.usuarioId !== 'EMP-ADMIN') return;
+  cancelarEdicionEmpleado(); // [CAMBIO] Limpia el formulario inferior cada vez que se refresca Team
   try {
     const respEmp = await fetch(`${API_BASE}/api/empleados`);
     listaGlobalEmpleados = await respEmp.json();

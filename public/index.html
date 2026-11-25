@@ -184,107 +184,193 @@
                 </div>
             </div>
 
-            <!-- VISTA 3: CLIENTES Y LICENCIAS -->
+             <!-- VISTA 3: CLIENTES Y LICENCIAS -->
             <div id="vista-clientes" class="vista">
                 <div class="cabecera-metricas">
                     <h2>Clientes y Licencias</h2>
-                </div>
-                <div class="tarjeta-panel">
-                    <h3>1. Búsqueda de Cliente</h3>
-                    <div class="barra-busqueda">
-                        <input type="text" id="input-buscar" placeholder="Buscar por Número de Cliente, Negocio, Contacto, Teléfono o Correo...">
-                        <button class="btn-actualizar" onclick="buscarCliente()">Buscar Cliente</button>
-                    </div>
-                    <div class="grid-formulario">
-                        <div class="info-caja"><small>Número de Cliente</small><span id="lbl-num-cliente">--</span></div>
-                        <div class="info-caja"><small>Nombre del Negocio</small><span id="lbl-negocio">Realice una búsqueda...</span></div>
-                        <div class="info-caja"><small>Contacto</small><span id="lbl-contacto">-</span></div>
-                        <div class="info-caja"><small>Teléfono</small><span id="lbl-telefono">-</span></div>
-                        <div class="info-caja"><small>Correo</small><span id="lbl-correo">-</span></div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secundario" onclick="limpiarVistaClientes()">
+                            <i class="bx bx-eraser"></i> Limpiar Pantalla
+                        </button>
+                        <button class="btn-actualizar" onclick="refrescarVistaClientes()">
+                            <i class="bx bx-refresh"></i>
+                            <span>Refrescar</span>
+                        </button>
                     </div>
                 </div>
 
-                <div class="tarjeta-panel">
-                    <h3>2. Licencias del Cliente</h3>
-                    <table class="tabla-oscura">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;">Sel.</th>
-                                <th>Orden / Folio</th>
-                                <th>Producto</th>
-                                <th>Clave de Licencia</th>
-                                <th>Estatus</th>
-                                <th>Vencimiento</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-productos">
-                            <tr><td colspan="6" style="text-align: center; color: #a0a0ab;">Use el buscador superior para consultar un cliente.</td></tr>
-                        </tbody>
-                    </table>
+                <div id="clientes-sin-permiso" class="tarjeta-panel" style="display: none; border-color: #ef4444;">
+                    <h3 style="color: #f87171;">Acceso Restringido</h3>
+                    <p style="color: #e2e8f0; font-size: 14px;">No tienes permiso para consultar Clientes. Habla con tu supervisor para habilitarlo.</p>
                 </div>
 
-                <div class="tarjeta-panel">
-                    <h3>3. Renovación y Soporte</h3>
-                    <div class="campo-grupo" style="max-width: 420px;">
-                        <label>Acción de Operación</label>
-                        <select id="selector-accion" onchange="cambiarAccion()">
-                            <option value="">-- Seleccionar operación --</option>
-                            <option value="renovacion" id="opt-renovacion">Renovación / Activación por Pago (Manual)</option>
-                            <option value="reactivacion" id="opt-reactivacion">Reactivación por Cambio de Equipo (HWID)</option>
-                            <option value="telefonica" id="opt-telefonica">Activación Offline / Telefónica</option>
-                        </select>
-                    </div>
-
-                    <div id="form-renovacion" style="display: none; margin-top: 14px;">
-                        <div class="grid-formulario">
-                            <div class="campo-grupo"><label>Licencia Seleccionada</label><input type="text" id="input-license-renov" readonly></div>
-                            <div class="campo-grupo"><label>Referencia / Comprobante SPEI</label><input type="text" id="input-ref-pago" placeholder="Ej. SPEI-987654321"></div>
+                <div id="clientes-contenido-autorizado">
+                    <div class="tarjeta-panel">
+                        <h3>1. Búsqueda de Cliente</h3>
+                        <div class="barra-busqueda">
+                            <input type="text" id="input-buscar" placeholder="Buscar por Número de Cliente, Negocio, Contacto, Teléfono o Correo...">
+                            <button class="btn-actualizar" onclick="buscarCliente()">Buscar Cliente</button>
                         </div>
-                        <button class="btn-actualizar" onclick="ejecutarRenovacionManual()">Aplicar Renovación (+30 Días)</button>
-                    </div>
-
-                    <div id="form-reactivacion" style="display: none; margin-top: 14px;">
                         <div class="grid-formulario">
-                            <div class="campo-grupo"><label>Clave Seleccionada</label><input type="text" id="input-license-reac" readonly></div>
-                            <div class="campo-grupo"><label>Nuevo HWID</label><input type="text" id="input-hwid-reac" placeholder="Ej. HWID-TABLET-NUEVO"></div>
+                            <div class="info-caja"><small>Número de Cliente</small><span id="lbl-num-cliente">--</span></div>
+                            <div class="info-caja"><small>Nombre del Negocio</small><span id="lbl-negocio">Realice una búsqueda...</span></div>
+                            <div class="info-caja"><small>Contacto</small><span id="lbl-contacto">-</span></div>
+                            <div class="info-caja"><small>Teléfono</small><span id="lbl-telefono">-</span></div>
+                            <div class="info-caja"><small>Correo</small><span id="lbl-correo">-</span></div>
                         </div>
-                        <button class="btn-actualizar" onclick="ejecutarReactivacion()">Actualizar Hardware</button>
                     </div>
 
-                    <div id="form-telefonica" style="display: none; margin-top: 14px;">
-                        <div class="campo-grupo" style="max-width: 420px;"><label>HWID dictado por el cliente</label><input type="text" id="input-hwid-tel" placeholder="Pegue la clave..."></div>
-                        <button class="btn-actualizar" onclick="generarClaveTelefonica()">Generar y Enviar por Correo</button>
+                    <div class="tarjeta-panel">
+                        <h3>2. Licencias del Cliente</h3>
+                        <table class="tabla-oscura">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">Sel.</th>
+                                    <th>Orden / Folio</th>
+                                    <th>Producto</th>
+                                    <th>Clave de Licencia</th>
+                                    <th>Estatus</th>
+                                    <th>Vencimiento</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-productos">
+                                <tr><td colspan="6" style="text-align: center; color: #a0a0ab;">Use el buscador superior para consultar un cliente.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tarjeta-panel">
+                        <h3>3. Renovación y Soporte</h3>
+                        <div class="campo-grupo" style="max-width: 420px;">
+                            <label>Acción de Operación</label>
+                            <select id="selector-accion" onchange="cambiarAccion()">
+                                <option value="">-- Seleccionar operación --</option>
+                                <option value="renovacion" id="opt-renovacion">Renovación / Activación por Pago (Manual)</option>
+                                <option value="reactivacion" id="opt-reactivacion">Reactivación por Cambio de Equipo (HWID)</option>
+                                <option value="telefonica" id="opt-telefonica">Activación Offline / Telefónica</option>
+                            </select>
+                        </div>
+
+                        <div id="form-renovacion" style="display: none; margin-top: 14px;">
+                            <div class="grid-formulario">
+                                <div class="campo-grupo"><label>Licencia Seleccionada</label><input type="text" id="input-license-renov" readonly></div>
+                                <div class="campo-grupo">
+                                    <label>Plan / Duración Pagada</label>
+                                    <select id="renov-dias">
+                                        <option value="30" selected>30 Días (1 Mes)</option>
+                                        <option value="90">90 Días (3 Meses)</option>
+                                        <option value="180">180 Días (6 Meses)</option>
+                                        <option value="365">365 Días (1 Año)</option>
+                                    </select>
+                                </div>
+                                <div class="campo-grupo">
+                                    <label>Forma de Pago</label>
+                                    <select id="renov-metodo">
+                                        <option value="transferencia_manual">Transferencia SPEI</option>
+                                        <option value="deposito_bancario">Depósito Bancario</option>
+                                        <option value="oxxo_manual">Pago OXXO</option>
+                                        <option value="efectivo_manual">Efectivo</option>
+                                    </select>
+                                </div>
+                                <div class="campo-grupo"><label>Monto Pagado (MXN)</label><input type="number" id="renov-monto" min="1" step="0.01" placeholder="Ej. 299.00"></div>
+                                <div class="campo-grupo"><label>Referencia / Comprobante</label><input type="text" id="input-ref-pago" placeholder="Ej. SPEI-987654321"></div>
+                                <div class="campo-grupo"><label>Confirmar Número de Cliente</label><input type="text" id="renov-confirmar-cliente" placeholder="Ej. CLI-6895"></div>
+                            </div>
+                            <button class="btn-actualizar" onclick="ejecutarRenovacionManual()">Aplicar Renovación</button>
+                        </div>
+
+                        <div id="form-reactivacion" style="display: none; margin-top: 14px;">
+                            <div class="grid-formulario">
+                                <div class="campo-grupo"><label>Clave Seleccionada</label><input type="text" id="input-license-reac" readonly></div>
+                                <div class="campo-grupo"><label>Nuevo HWID</label><input type="text" id="input-hwid-reac" placeholder="Ej. HWID-TABLET-NUEVO"></div>
+                            </div>
+                            <button class="btn-actualizar" onclick="ejecutarReactivacion()">Actualizar Hardware</button>
+                        </div>
+
+                        <div id="form-telefonica" style="display: none; margin-top: 14px;">
+                            <div class="campo-grupo" style="max-width: 420px;"><label>HWID dictado por el cliente</label><input type="text" id="input-hwid-tel" placeholder="Pegue la clave..."></div>
+                            <button class="btn-actualizar" onclick="generarClaveTelefonica()">Generar y Enviar por Correo</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- VISTA 4: TRIAL / CORTESÍAS -->
+            <!-- VISTA 4: TRIAL / CORTESÍAS (INDEPENDIENTE) -->
             <div id="vista-trial" class="vista">
                 <div class="cabecera-metricas">
                     <h2>Trial / Extensión de Cortesías</h2>
-                </div>
-                <div class="tarjeta-panel">
-                    <h3>Extender Vigencia o Prueba Piloto</h3>
-                    <p style="font-size: 13px; color: #a0a0ab; margin-bottom: 14px;">Primero busca y selecciona la licencia del cliente en la pestaña <strong>Clientes</strong>.</p>
-                    <div class="grid-formulario">
-                        <div class="campo-grupo"><label>Número de Cliente</label><input type="text" id="cortesia-num-cliente" readonly placeholder="N/A"></div>
-                        <div class="campo-grupo"><label>Nombre del Negocio</label><input type="text" id="cortesia-negocio" readonly placeholder="N/A"></div>
-                        <div class="campo-grupo"><label>Licencia Seleccionada</label><input type="text" id="cortesia-license" readonly placeholder="Seleccione en Clientes"></div>
-                        <div class="campo-grupo"><label>Tipo de Producto</label><input type="text" id="cortesia-producto" readonly placeholder="Automático"></div>
-                        <div class="campo-grupo"><label>Tipo de Dispositivo</label><input type="text" id="cortesia-dispositivo" readonly placeholder="android_tablet"></div>
-                        <div class="campo-grupo"><label>HWID (Tablet)</label><input type="text" id="cortesia-hwid" placeholder="Clave de hardware"></div>
-                        <div class="campo-grupo">
-                            <label>Duración de Extensión</label>
-                            <select id="cortesia-dias">
-                                <option value="1">1 Día</option>
-                                <option value="15">15 Días</option>
-                                <option value="30" selected>30 Días (1 Mes)</option>
-                                <option value="180">6 Meses</option>
-                                <option value="365">1 Año</option>
-                            </select>
-                        </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secundario" onclick="limpiarVistaTrial()">
+                            <i class="bx bx-eraser"></i> Limpiar Pantalla
+                        </button>
+                        <button class="btn-actualizar" onclick="refrescarVistaTrial()">
+                            <i class="bx bx-refresh"></i>
+                            <span>Refrescar</span>
+                        </button>
                     </div>
-                    <button class="btn-actualizar" onclick="generarNuevaPruebaCortesia()">Generar / Extender Vigencia</button>
+                </div>
+
+                <div id="trial-sin-permiso" class="tarjeta-panel" style="display: none; border-color: #ef4444;">
+                    <h3 style="color: #f87171;">Acceso Restringido</h3>
+                    <p style="color: #e2e8f0; font-size: 14px;">No tienes permiso para otorgar cortesías o extensiones Trial.</p>
+                </div>
+
+                <div id="trial-contenido-autorizado">
+                    <div class="tarjeta-panel">
+                        <h3>1. Buscar Cliente / Licencia</h3>
+                        <div class="barra-busqueda">
+                            <input type="text" id="trial-input-buscar" placeholder="Buscar por Número de Cliente, Negocio, Licencia o Correo...">
+                            <button class="btn-actualizar" onclick="buscarClienteTrial()">Buscar</button>
+                        </div>
+                        <table class="tabla-oscura">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">Sel.</th>
+                                    <th>No. Cliente</th>
+                                    <th>Negocio</th>
+                                    <th>Licencia</th>
+                                    <th>Vencimiento</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-trial-resultados">
+                                <tr><td colspan="5" style="text-align: center; color: #a0a0ab;">Busca un cliente arriba para seleccionar su licencia.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tarjeta-panel">
+                        <h3>2. Extender Vigencia o Prueba Piloto</h3>
+                        <div class="grid-formulario">
+                            <div class="campo-grupo"><label>Número de Cliente</label><input type="text" id="cortesia-num-cliente" readonly placeholder="N/A"></div>
+                            <div class="campo-grupo"><label>Nombre del Negocio</label><input type="text" id="cortesia-negocio" readonly placeholder="N/A"></div>
+                            <div class="campo-grupo"><label>Licencia Seleccionada</label><input type="text" id="cortesia-license" readonly placeholder="Seleccione arriba"></div>
+                            <div class="campo-grupo"><label>Tipo de Producto</label><input type="text" id="cortesia-producto" readonly placeholder="Automático"></div>
+                            <div class="campo-grupo"><label>Tipo de Dispositivo</label><input type="text" id="cortesia-dispositivo" readonly placeholder="android_tablet"></div>
+                            <div class="campo-grupo"><label>HWID (Tablet)</label><input type="text" id="cortesia-hwid" placeholder="Clave de hardware"></div>
+                            <div class="campo-grupo">
+                                <label>Duración de Extensión</label>
+                                <select id="cortesia-dias">
+                                    <option value="1">1 Día</option>
+                                    <option value="15">15 Días</option>
+                                    <option value="30" selected>30 Días (1 Mes)</option>
+                                    <option value="180">6 Meses</option>
+                                    <option value="365">1 Año</option>
+                                </select>
+                            </div>
+                            <div class="campo-grupo">
+                                <label>Motivo de la Cortesía</label>
+                                <select id="cortesia-motivo">
+                                    <option value="">-- Seleccionar motivo --</option>
+                                    <option value="Prueba piloto">Prueba piloto</option>
+                                    <option value="Compensación por soporte">Compensación por soporte</option>
+                                    <option value="Cortesía comercial">Cortesía comercial</option>
+                                    <option value="Extensión de evaluación">Extensión de evaluación</option>
+                                </select>
+                            </div>
+                            <div class="campo-grupo"><label>Confirmar Número de Cliente</label><input type="text" id="cortesia-confirmar-cliente" placeholder="Ej. CLI-6895"></div>
+                        </div>
+                        <button class="btn-actualizar" onclick="generarNuevaPruebaCortesia()">Generar / Extender Vigencia</button>
+                    </div>
                 </div>
             </div>
 

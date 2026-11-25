@@ -455,8 +455,8 @@ body {
    ========================================================= */
 .grid-team-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); /* [CAMBIO] Hasta 4 tarjetas por fila */
+    gap: 16px;
     margin-bottom: 24px;
 }
 
