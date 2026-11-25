@@ -381,6 +381,12 @@
                     <!-- PANEL INFERIOR: EXTENDER VIGENCIA O PRUEBA PILOTO -->
                     <div class="tarjeta-panel">
                         <h3>2. Extender Vigencia o Prueba Piloto</h3>
+                        <!-- [CAMBIO] Buscador rápido directo en el módulo inferior -->
+                        <div class="barra-busqueda" style="margin-bottom: 14px;">
+                            <input type="text" id="cortesia-input-buscar" placeholder="Buscar cliente para activar/extender (No. Cliente, Negocio, Licencia o Correo)...">
+                            <button class="btn-actualizar" onclick="buscarParaExtenderTrial()">Buscar</button>
+                        </div>
+                        
                         <div class="grid-formulario">
                             <div class="campo-grupo"><label>Número de Cliente</label><input type="text" id="cortesia-num-cliente" readonly placeholder="N/A"></div>
                             <div class="campo-grupo"><label>Nombre del Negocio</label><input type="text" id="cortesia-negocio" readonly placeholder="N/A"></div>

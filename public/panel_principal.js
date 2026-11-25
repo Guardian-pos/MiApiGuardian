@@ -330,6 +330,8 @@ function limpiarVistaTrial() {
   document.getElementById('trial-input-buscar').value = '';
   const filtroEl = document.getElementById('trial-filtro-estado');
   if (filtroEl) filtroEl.value = 'todos';
+  const buscadorExt = document.getElementById('cortesia-input-buscar'); // [CAMBIO]
+  if (buscadorExt) buscadorExt.value = ''; // [CAMBIO]
   const checkTodos = document.getElementById('trial-check-todos');
   if (checkTodos) checkTodos.checked = false;
   document.getElementById('cortesia-num-cliente').value = '';
@@ -442,7 +444,12 @@ function renderizarTablaTrials(lista) {
       <td style="font-family:monospace;color:#a78bfa;">${item.licenseKey}</td>
       <td>${badge}</td>
       <td>${fechaText}</td>
-      <td><button class="btn-secundario" style="padding:5px 10px;font-size:12px;" onclick="seleccionarLicenciaTrial('${item._id}')">Extender</button></td>
+      <!-- [CAMBIO] Bloquea el botón Extender si ya excedió 3 meses vencida -->
+      <td>
+        ${masDe3Meses
+          ? '<button class="btn-secundario" style="padding:5px 10px;font-size:12px;opacity:0.45;cursor:not-allowed;" disabled title="Excedió 3 meses vencida">Fuera de plazo</button>'
+          : `<button class="btn-secundario" style="padding:5px 10px;font-size:12px;" onclick="seleccionarLicenciaTrial('${item._id}')">Extender</button>`}
+      </td>
     `;
     tbody.appendChild(tr);
   });
@@ -494,9 +501,35 @@ async function eliminarTrialsSeleccionados() {
   }
 }
 
+// [CAMBIO] Busca directamente desde el módulo inferior y carga los datos para extender/activar
+function buscarParaExtenderTrial() {
+  const q = (document.getElementById('cortesia-input-buscar')?.value || '').toLowerCase().trim();
+  if (!q) return alert('Escribe un número de cliente, negocio, correo o licencia para buscar.');
+
+  const encontrado = (listaGlobalLicencias || []).find((item) => {
+    if (!['prueba_activa', 'prueba_vencida'].includes(item.estado)) return false;
+    const c = item.client || {};
+    return [c.numero_cliente, c.nombre_negocio, c.correo, item.licenseKey]
+      .some((v) => v && String(v).toLowerCase().includes(q));
+  });
+
+  if (!encontrado) {
+    return alert('No se encontró ninguna licencia trial con ese criterio.');
+  }
+
+  seleccionarLicenciaTrial(encontrado._id);
+}
+
 function seleccionarLicenciaTrial(id) {
   const item = listaGlobalLicencias.find((l) => l._id === id);
   if (!item) return;
+
+  // [CAMBIO] Bloquea la carga si lleva más de 3 meses (90 días) vencida
+  const hace90Dias = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  if (item.estado === 'prueba_vencida' && item.fecha_expiracion && new Date(item.fecha_expiracion) < hace90Dias) {
+    return alert('Esta licencia lleva más de 3 meses vencida y está marcada para depuración.');
+  }
+
   itemTrialSeleccionado = item;
   document.getElementById('cortesia-num-cliente').value = item.client?.numero_cliente || 'CLI-S/N';
   document.getElementById('cortesia-negocio').value = item.client?.nombre_negocio || 'N/A';
@@ -504,7 +537,8 @@ function seleccionarLicenciaTrial(id) {
   document.getElementById('cortesia-producto').value = item.tipo_producto || 'guardian_pos_lite';
   document.getElementById('cortesia-dispositivo').value = item.hardwareBinding?.tipo_dispositivo || 'android_tablet';
   document.getElementById('cortesia-hwid').value = item.hardwareBinding?.identificador_unico || '';
-  document.getElementById('cortesia-confirmar-cliente').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('cortesia-confirmar-cliente').value = ''; // [CAMBIO]
+  document.getElementById('cortesia-confirmar-cliente').focus(); // [CAMBIO] Deja el cursor listo para confirmar
 }
 
 async function generarNuevaPruebaCortesia() {
