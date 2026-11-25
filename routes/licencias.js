@@ -172,6 +172,14 @@ router.put('/actualizar/:id', async (req, res) => {
                           <tr><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong>Nueva Vigencia:</strong></td><td style="padding:6px 8px;border-bottom:1px solid #F3F4F6;"><strong style="color:#059669;">${fechaVigencia}</strong></td></tr>
                           ${detalleExtra}
                         </table>
+                         <!-- [CAMBIO] Instrucciones para restablecer el servicio en la tableta -->
+                        <div style="background: #F5F3FF; border: 1px solid #DDD6FE; border-left: 4px solid #7C3AED; border-radius: 6px; padding: 12px 14px; margin: 14px 0; font-size: 13px; color: #1F2937; line-height: 1.5;">
+                          <strong>¿Cómo restablecer tu acceso en la tableta?</strong>
+                          <ol style="margin: 6px 0 0 18px; padding: 0;">
+                            <li>Ve a tu tableta y oprime el botón <strong>Actualizar</strong> o <strong>Verificar pago</strong> para que tu licencia se restablezca de inmediato.</li>
+                            <li>O bien, <strong>reinicia la aplicación</strong> por completo y el sistema ingresará en automático.</li>
+                          </ol>
+                        </div>
                         <p style="font-size: 13px; color: #4B5563;">Este correo fue enviado por cortesía de <strong>Guardián POS</strong>. ¡Gracias por seguir trabajando con nosotros!</p>
                       </div>
                     `
