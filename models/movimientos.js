@@ -12,7 +12,8 @@ const MovimientoSchema = new mongoose.Schema({
   tipoMovimiento: { 
     type: String, 
     required: true, 
-    enum: ['venta', 'devolucion', 'devolucion_cuarentena', 'entrada_caja', 'salida_caja', 'corte_caja'] 
+    // [CAMBIO] Se agregan 'recarga' y 'servicio' para separarlos de 'venta'
+    enum: ['venta', 'recarga', 'servicio', 'devolucion', 'devolucion_cuarentena', 'entrada_caja', 'salida_caja', 'corte_caja'] 
   },
 
   // [CAMBIO] Control de turno abierto/cerrado para aislar movimientos hasta ejecutar el corte de caja
@@ -23,11 +24,17 @@ const MovimientoSchema = new mongoose.Schema({
   // [CAMBIO] Estado independiente para devoluciones retenidas en cuarentena hasta confirmación/reingreso en panel web
   cuarentena: { type: Boolean, default: false }, // true = pendiente de revisión/reingreso en panel web; false = resuelto o no aplica
   
-  // Campos para Ventas y Devoluciones (Obligatorio SOLO si es venta o devolución)
+  // Campos para Ventas, Recargas, Servicios y Devoluciones
   folioTicket: { 
     type: String, 
     required: function() {
-      return this.tipoMovimiento === 'venta' || this.tipoMovimiento === 'devolucion' || this.tipoMovimiento === 'devolucion_cuarentena';
+      return (
+        this.tipoMovimiento === 'venta' ||
+        this.tipoMovimiento === 'recarga' || // [CAMBIO]
+        this.tipoMovimiento === 'servicio' || // [CAMBIO]
+        this.tipoMovimiento === 'devolucion' ||
+        this.tipoMovimiento === 'devolucion_cuarentena'
+      );
     }, 
     unique: false 
   }, // Ej. T1-000142 (Único por terminal)
@@ -57,6 +64,8 @@ const MovimientoSchema = new mongoose.Schema({
   fechaInicioTurno: { type: Date }, // [CAMBIO] Inicio del turno/periodo que abarca el cierre
   efectivoContado: { type: Number },
   ventasTotalesSistema: { type: Number },
+  totalRecargas: { type: Number, default: 0 }, // [CAMBIO] Desglose separado de Recargas en el corte
+  totalServicios: { type: Number, default: 0 }, // [CAMBIO] Desglose separado de Pago de Servicios en el corte
   totalDevoluciones: { type: Number }, // [CAMBIO] Monto total de devoluciones del turno
   totalEntradas: { type: Number },
   totalSalidas: { type: Number },

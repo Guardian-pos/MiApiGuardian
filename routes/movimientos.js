@@ -59,10 +59,12 @@ async function enviarCorreoCorteCaja({
     : cleanTenantId.toUpperCase();
 
   const ventasSistema = Number(documentoCorte.ventasTotalesSistema || 0);
+  const recargasSistema = Number(documentoCorte.totalRecargas || 0); // [CAMBIO]
+  const serviciosSistema = Number(documentoCorte.totalServicios || 0); // [CAMBIO]
   const devoluciones = Number(documentoCorte.totalDevoluciones || 0);
   const entradas = Number(documentoCorte.totalEntradas || 0);
   const salidas = Number(documentoCorte.totalSalidas || 0);
-  const efectivoEsperado = ventasSistema - devoluciones - salidas + entradas;
+  const efectivoEsperado = (ventasSistema + recargasSistema + serviciosSistema) - devoluciones - salidas + entradas; // [CAMBIO]
   const efectivoContado = Number(documentoCorte.efectivoContado || 0);
   const diferencia =
     documentoCorte.diferencia !== undefined && documentoCorte.diferencia !== null
@@ -118,8 +120,16 @@ async function enviarCorreoCorteCaja({
           <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${cierreStr}</td>
         </tr>
         <tr>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Ventas:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Ventas (Productos):</strong></td>
           <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(ventasSistema)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Recargas Telefónicas:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(recargasSistema)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Pago de Servicios:</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;">${formatearMoneda(serviciosSistema)}</td>
         </tr>
         <tr>
           <td style="padding: 6px 8px; border-bottom: 1px solid #F3F4F6;"><strong>Devoluciones:</strong></td>
@@ -294,6 +304,8 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
       fechaInicioTurno,
       efectivoContado,
       ventasTotalesSistema,
+      totalRecargas, // [CAMBIO]
+      totalServicios, // [CAMBIO]
       totalDevoluciones,
       totalEntradas,
       totalSalidas,
@@ -343,6 +355,8 @@ router.post('/corte-caja', async (routerReq, routerRes) => {
       fechaInicioTurno: fechaInicioTurno ? new Date(fechaInicioTurno) : fechaCierre,
       efectivoContado: Number(efectivoContado || 0),
       ventasTotalesSistema: Number(ventasTotalesSistema || 0),
+      totalRecargas: Number(totalRecargas || 0), // [CAMBIO]
+      totalServicios: Number(totalServicios || 0), // [CAMBIO]
       totalDevoluciones: Number(totalDevoluciones || 0),
       totalEntradas: Number(totalEntradas || 0),
       totalSalidas: Number(totalSalidas || 0),
@@ -567,6 +581,8 @@ router.get('/financieros/:tenantId', async (routerReq, routerRes) => {
     const movimientos = await Movimiento.find(filtro).sort({ fechaEmision: 1 });
 
     let totalVentas = 0;
+    let totalRecargas = 0; // [CAMBIO]
+    let totalServicios = 0; // [CAMBIO]
     let devoluciones = 0;
     let entradaEfectivo = 0;
     let salidaEfectivo = 0;
@@ -576,6 +592,10 @@ router.get('/financieros/:tenantId', async (routerReq, routerRes) => {
       
       if (tipo === 'venta') {
         totalVentas += Number(m.totalVenta || m.totalOriginal || 0);
+      } else if (tipo === 'recarga') { // [CAMBIO]
+        totalRecargas += Number(m.totalVenta || m.totalOriginal || 0);
+      } else if (tipo === 'servicio') { // [CAMBIO]
+        totalServicios += Number(m.totalVenta || m.totalOriginal || 0);
       } else if (tipo === 'devolucion' || tipo === 'devolucion_cuarentena') {
         devoluciones += Number(m.totalDevolucion || 0);
       } else if (tipo === 'entrada_caja') {
@@ -585,8 +605,8 @@ router.get('/financieros/:tenantId', async (routerReq, routerRes) => {
       }
     });
 
-    // Total final esperado en caja
-    const totalFinal = totalVentas - devoluciones - salidaEfectivo + entradaEfectivo;
+    // [CAMBIO] Total final esperado en caja incluye Ventas + Recargas + Pago de Servicios
+    const totalFinal = (totalVentas + totalRecargas + totalServicios) - devoluciones - salidaEfectivo + entradaEfectivo;
 
     let nombreUsuario = 'OPERADOR';
     if (movimientos.length > 0 && movimientos[0].nombreUsuario) {
@@ -601,6 +621,8 @@ router.get('/financieros/:tenantId', async (routerReq, routerRes) => {
       fechaInicial: movimientos.length > 0 ? movimientos[0].fechaEmision : new Date().toISOString(),
       fechaFinal: new Date().toISOString(),
       totalVentas,
+      totalRecargas, // [CAMBIO]
+      totalServicios, // [CAMBIO]
       devoluciones,
       salidaEfectivo,
       entradaEfectivo,

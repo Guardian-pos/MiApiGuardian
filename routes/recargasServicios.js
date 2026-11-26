@@ -311,7 +311,7 @@ router.post('/abonar', async (req, res) => {
 });
 
 // =========================================================================
-// POST: Cobrar Recarga Electrónica (Descuento atómico -> Proveedor -> Venta o Reembolso)
+// POST: Cobrar Recarga Electrónica (Descuento atómico -> Proveedor -> Movimiento 'recarga' o Reembolso)
 // =========================================================================
 router.post('/cobrar-recarga', async (req, res) => {
   try {
@@ -417,7 +417,7 @@ router.post('/cobrar-recarga', async (req, res) => {
       };
     }
 
-    // 3A. Si FALLA o hace TIMEOUT -> Reembolsar automáticamente y NO registrar venta
+    // 3A. Si FALLA o hace TIMEOUT -> Reembolsar automáticamente y NO registrar movimiento
     if (!respProveedor.exito) {
       const billeteraReembolsada = await BilleteraTokens.findOneAndUpdate(
         { tenantId: cleanTenantId },
@@ -453,14 +453,14 @@ router.post('/cobrar-recarga', async (req, res) => {
       });
     }
 
-    // 3B. Si ÉXITO -> Registrar venta en Movimientos (abierto: true para Cierre de Caja)
+    // 3B. Si ÉXITO -> Registrar movimiento como 'recarga' (abierto: true para Cierre de Caja)
     const movimientoVenta = await Movimiento.create({
       tenantId: cleanTenantId,
       terminalId: String(terminalId).trim(),
       usuarioId: String(usuarioId).trim(),
       nombreUsuario: String(nombreUsuario).trim(),
       rolUsuario: String(rolUsuario).trim(),
-      tipoMovimiento: 'venta',
+      tipoMovimiento: 'recarga', // [CAMBIO] Separado de 'venta' para Cierre de Caja
       abierto: true,
       cuarentena: false,
       folioTicket: folioRef,
@@ -519,7 +519,7 @@ router.post('/cobrar-recarga', async (req, res) => {
 });
 
 // =========================================================================
-// POST: Cobrar Pago de Servicio (Monto + Tarifa Fija -> Proveedor -> Venta o Reembolso)
+// POST: Cobrar Pago de Servicio (Monto + Tarifa Fija -> Proveedor -> Movimiento 'servicio' o Reembolso)
 // =========================================================================
 router.post('/cobrar-servicio', async (req, res) => {
   try {
@@ -666,14 +666,14 @@ router.post('/cobrar-servicio', async (req, res) => {
       });
     }
 
-    // 3B. Si ÉXITO -> Registrar venta en Movimientos (abierto: true para Cierre de Caja)
+    // 3B. Si ÉXITO -> Registrar movimiento como 'servicio' (abierto: true para Cierre de Caja)
     const movimientoVenta = await Movimiento.create({
       tenantId: cleanTenantId,
       terminalId: String(terminalId).trim(),
       usuarioId: String(usuarioId).trim(),
       nombreUsuario: String(nombreUsuario).trim(),
       rolUsuario: String(rolUsuario).trim(),
-      tipoMovimiento: 'venta',
+      tipoMovimiento: 'servicio', // [CAMBIO] Separado de 'venta' para Cierre de Caja
       abierto: true,
       cuarentena: false,
       folioTicket: folioRef,
