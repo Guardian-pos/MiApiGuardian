@@ -9,7 +9,7 @@ const Empleado = require('../models/Empleado'); // [CAMBIO]
 const proveedorService = require('../services/proveedorRecargasService');
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null; // [CAMBIO]
-const TARIFA_SERVICIO_DEFAULT = Number(process.env.TARIFA_FIJA_SERVICIO || 7);
+const TARIFA_SERVICIO_DEFAULT = Number(process.env.TARIFA_FIJA_SERVICIO || 8); // [CAMBIO] Costo por operación $8.00 MXN
 
 // [CAMBIO] Helpers para correo de abono en horario de México
 function formatearFechaMexico(fechaValor) {
@@ -128,6 +128,40 @@ router.get('/saldo/:tenantId', async (req, res) => {
     });
   } catch (error) {
     console.error('>>> [TOKENS SALDO ERROR]:', error);
+    return res.status(500).json({ exito: false, error: error.message });
+  }
+});
+
+// =========================================================================
+// [CAMBIO] GET: Consultar estatus de una operación por folio / idempotencyKey (RTM)
+// =========================================================================
+router.get('/estatus/:folio', async (req, res) => {
+  try {
+    const folio = String(req.params.folio || '').trim();
+    if (!folio) {
+      return res.status(400).json({ exito: false, error: 'folio es obligatorio' });
+    }
+
+    const registro = await HistorialTokens.findOne({ folioReferencia: folio }).sort({ createdAt: -1 });
+    if (!registro) {
+      return res.status(404).json({ exito: false, error: 'Operación no encontrada' });
+    }
+
+    return res.json({
+      exito: true,
+      data: {
+        folioReferencia: registro.folioReferencia,
+        bolsa: registro.bolsa,
+        tipo: registro.tipo,
+        estado: registro.estado,
+        montoOperacion: registro.montoOperacion,
+        autorizacion: registro.proveedorRespuesta?.autorizacion || '',
+        mensaje: registro.proveedorRespuesta?.mensaje || '',
+        createdAt: registro.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error('>>> [TOKENS ESTATUS ERROR]:', error);
     return res.status(500).json({ exito: false, error: error.message });
   }
 });
@@ -290,12 +324,16 @@ router.post('/cobrar-recarga', async (req, res) => {
       compania,
       numeroTelefono,
       monto,
+      comisionCliente = 0, // [CAMBIO] Comisión cobrada al cliente final
       folioTicket,
+      idempotencyKey, // [CAMBIO] Control anti-duplicados RTM
       simularModo = 'OK', // Para pruebas en mock: 'OK' | 'ERROR' | 'TIMEOUT'
     } = req.body;
 
     const cleanTenantId = normalizarTenant(tenantId);
     const montoNum = Number(monto);
+    const comisionNum = Math.max(0, Number(comisionCliente || 0)); // [CAMBIO]
+    const totalCobradoCaja = Number((montoNum + comisionNum).toFixed(2)); // [CAMBIO]
 
     if (!cleanTenantId || !usuarioId || !nombreUsuario || !compania || !numeroTelefono) {
       return res.status(400).json({
@@ -305,6 +343,36 @@ router.post('/cobrar-recarga', async (req, res) => {
     }
     if (!Number.isFinite(montoNum) || montoNum <= 0) {
       return res.status(400).json({ exito: false, error: 'El monto de la recarga debe ser mayor a 0' });
+    }
+
+    // [CAMBIO] Folio único priorizando idempotencyKey / folioTicket para evitar recargas duplicadas
+    const folioRef = idempotencyKey
+      ? String(idempotencyKey).trim()
+      : (folioTicket ? String(folioTicket).trim() : generarFolioLite('REC', terminalId));
+
+    const operacionPrevia = await HistorialTokens.findOne({
+      tenantId: cleanTenantId,
+      folioReferencia: folioRef,
+    });
+    if (operacionPrevia) {
+      if (operacionPrevia.estado === 'EXITOSO') {
+        const billeteraActual = await BilleteraTokens.findOne({ tenantId: cleanTenantId });
+        return res.status(200).json({
+          exito: true,
+          duplicadoEvitado: true,
+          mensaje: 'Operación ya procesada anteriormente.',
+          data: {
+            folioTicket: folioRef,
+            autorizacion: operacionPrevia.proveedorRespuesta?.autorizacion || '',
+            simulado: operacionPrevia.proveedorRespuesta?.simulado ?? true,
+            saldoRestanteRecargas: billeteraActual ? billeteraActual.tokensRecargas : 0,
+          },
+        });
+      }
+      return res.status(409).json({
+        exito: false,
+        error: 'Esta operación ya fue intentada y falló. Genere un nuevo intento.',
+      });
     }
 
     // 1. Validación y descuento ATÓMICO en MongoDB ($gte)
@@ -328,7 +396,6 @@ router.post('/cobrar-recarga', async (req, res) => {
 
     const saldoTrasDescuento = billeteraDescontada.tokensRecargas;
     const saldoInicial = Number((saldoTrasDescuento + montoNum).toFixed(2));
-    const folioRef = folioTicket ? String(folioTicket).trim() : generarFolioLite('REC', terminalId);
 
     // 2. Disparar al proveedor (simulador/mock por ahora)
     let respProveedor;
@@ -397,17 +464,17 @@ router.post('/cobrar-recarga', async (req, res) => {
       abierto: true,
       cuarentena: false,
       folioTicket: folioRef,
-      totalOriginal: montoNum,
-      totalVenta: montoNum,
+      totalOriginal: totalCobradoCaja, // [CAMBIO] Incluye comisión si se configuró
+      totalVenta: totalCobradoCaja,    // [CAMBIO]
       items: [
         {
           idProducto: `REC-${String(compania).trim().toUpperCase()}`,
           codigoBarras: `REC-${String(compania).trim().toUpperCase()}`,
           nombre: `Recarga ${compania} (${numeroTelefono})`,
           cantidad: 1,
-          precioUnitario: montoNum,
+          precioUnitario: totalCobradoCaja, // [CAMBIO]
           tipoPrecioAplicado: 'SERVICIO',
-          subtotal: montoNum,
+          subtotal: totalCobradoCaja,       // [CAMBIO]
           costoUnitario: montoNum,
         },
       ],
@@ -467,6 +534,7 @@ router.post('/cobrar-servicio', async (req, res) => {
       montoRecibo,
       comisionCliente, // Opcional: lo que el negocio cobra al cliente final en caja (default = tarifaFija)
       folioTicket,
+      idempotencyKey, // [CAMBIO] Control anti-duplicados RTM
       simularModo = 'OK',
     } = req.body;
 
@@ -484,8 +552,39 @@ router.post('/cobrar-servicio', async (req, res) => {
       return res.status(400).json({ exito: false, error: 'montoRecibo debe ser mayor a 0' });
     }
 
+    // [CAMBIO] Folio único priorizando idempotencyKey / folioTicket para evitar pagos duplicados
+    const folioRef = idempotencyKey
+      ? String(idempotencyKey).trim()
+      : (folioTicket ? String(folioTicket).trim() : generarFolioLite('SERV', terminalId));
+
+    const operacionPrevia = await HistorialTokens.findOne({
+      tenantId: cleanTenantId,
+      folioReferencia: folioRef,
+    });
+    if (operacionPrevia) {
+      if (operacionPrevia.estado === 'EXITOSO') {
+        const billeteraActual = await BilleteraTokens.findOne({ tenantId: cleanTenantId });
+        return res.status(200).json({
+          exito: true,
+          duplicadoEvitado: true,
+          mensaje: 'Pago de servicio ya procesado anteriormente.',
+          data: {
+            folioTicket: folioRef,
+            autorizacion: operacionPrevia.proveedorRespuesta?.autorizacion || '',
+            simulado: operacionPrevia.proveedorRespuesta?.simulado ?? true,
+            tarifaAplicada: tarifaFija,
+            saldoRestanteServicios: billeteraActual ? billeteraActual.tokensServicios : 0,
+          },
+        });
+      }
+      return res.status(409).json({
+        exito: false,
+        error: 'Esta operación ya fue intentada y falló. Genere un nuevo intento.',
+      });
+    }
+
     const totalDescontarTokens = Number((montoReciboNum + tarifaFija).toFixed(2));
-    const comisionVenta = comisionCliente !== undefined ? Number(comisionCliente) : tarifaFija;
+    const comisionVenta = comisionCliente !== undefined ? Math.max(0, Number(comisionCliente)) : tarifaFija;
     const totalCobradoCaja = Number((montoReciboNum + comisionVenta).toFixed(2));
 
     // 1. Validación y descuento ATÓMICO en tokensServicios
@@ -509,7 +608,6 @@ router.post('/cobrar-servicio', async (req, res) => {
 
     const saldoTrasDescuento = billeteraDescontada.tokensServicios;
     const saldoInicial = Number((saldoTrasDescuento + totalDescontarTokens).toFixed(2));
-    const folioRef = folioTicket ? String(folioTicket).trim() : generarFolioLite('SERV', terminalId);
 
     // 2. Disparar al proveedor
     let respProveedor;
