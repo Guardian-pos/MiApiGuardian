@@ -102,7 +102,7 @@ async function llamarRtmSoap(method, innerXml) {
   throw new Error(`Respuesta SOAP inesperada: ${rawText.replace(/<[^>]+>/g, ' ').trim().slice(0, 180)}`);
 }
 
-// [CAMBIO] Parsea el XML de obtenerProductos a JSON limpio por Carrier y Producto
+// [CAMBIO] Parsea el XML de obtenerProductos separando precio real (monto) y código RTM (codigoMonto)
 function parsearCatalogoXml(innerXml) {
   const carriers = [];
   const carrierRegex = /<Carrier\s+([^>]*)>([\s\S]*?)<\/Carrier>/gi;
@@ -121,14 +121,22 @@ function parsearCatalogoXml(innerXml) {
     while ((pMatch = prodRegex.exec(body)) !== null) {
       const pBody = pMatch[2] || '';
       const nombre = extraerTag(pBody, 'Nombre');
-      const monto = Number(extraerTag(pBody, 'Monto') || 0);
+      const rawMontoStr = extraerTag(pBody, 'Monto');
+      const codigoMonto = rawMontoStr !== '' && !Number.isNaN(Number(rawMontoStr))
+        ? Number(rawMontoStr)
+        : null;
+      // [CAMBIO] Códigos >= 10000 (ej. 100006 -> $100, 25006 -> $25, 10005 -> $10) representan paquetes especiales
+      const montoReal = codigoMonto !== null
+        ? (codigoMonto >= 10000 ? Math.floor(codigoMonto / 1000) : codigoMonto)
+        : null;
       const neto = Number(extraerTag(pBody, 'Neto') || 0);
 
       if (nombre) {
         productos.push({
           tipo: (pMatch[1] || 'recarga').trim().toLowerCase(),
           nombre,
-          monto,
+          monto: montoReal,
+          codigoMonto,
           neto,
         });
       }
@@ -200,6 +208,7 @@ async function obtenerProductos({ categoria = 'todos', carrier = '' } = {}) {
             tipo: 'recarga',
             nombre: `TELCEL $${m}`,
             monto: m,
+            codigoMonto: m,
             neto: Number((m * 0.925).toFixed(2)),
           })),
         },
@@ -210,6 +219,7 @@ async function obtenerProductos({ categoria = 'todos', carrier = '' } = {}) {
             tipo: 'recarga',
             nombre: `AT&T $${m}`,
             monto: m,
+            codigoMonto: m,
             neto: Number((m * 0.925).toFixed(2)),
           })),
         },
@@ -220,6 +230,7 @@ async function obtenerProductos({ categoria = 'todos', carrier = '' } = {}) {
             tipo: 'recarga',
             nombre: `MOVISTAR $${m}`,
             monto: m,
+            codigoMonto: m,
             neto: Number((m * 0.925).toFixed(2)),
           })),
         },
@@ -227,13 +238,13 @@ async function obtenerProductos({ categoria = 'todos', carrier = '' } = {}) {
           id: 'SERVICIOS',
           nombre: 'SERVICIOS',
           productos: [
-            { tipo: 'servicio', nombre: 'FACTURAS TELMEX', monto: 0, neto: 7 },
-            { tipo: 'servicio', nombre: 'CFE', monto: 0, neto: 7 },
-            { tipo: 'servicio', nombre: 'MEGACABLE', monto: 0, neto: 7 },
-            { tipo: 'servicio', nombre: 'TOTALPLAY', monto: 0, neto: 7 },
-            { tipo: 'servicio', nombre: 'IZZI', monto: 0, neto: 7 },
-            { tipo: 'servicio', nombre: 'SKY', monto: 0, neto: 7 },
-            { tipo: 'servicio', nombre: 'DISH', monto: 0, neto: 7 },
+            { tipo: 'servicio', nombre: 'TELMEX', monto: null, codigoMonto: null, neto: 7 },
+            { tipo: 'servicio', nombre: 'CFE', monto: null, codigoMonto: null, neto: 7 },
+            { tipo: 'servicio', nombre: 'MEGACABLE', monto: null, codigoMonto: null, neto: 7 },
+            { tipo: 'servicio', nombre: 'TOTAL PLAY', monto: null, codigoMonto: null, neto: 7 },
+            { tipo: 'servicio', nombre: 'IZZI', monto: null, codigoMonto: null, neto: 7 },
+            { tipo: 'servicio', nombre: 'SKY', monto: null, codigoMonto: null, neto: 7 },
+            { tipo: 'servicio', nombre: 'DISH', monto: null, codigoMonto: null, neto: 7 },
           ],
         },
       ],
@@ -275,6 +286,7 @@ async function ejecutarRecarga({
   compania,
   numeroTelefono,
   monto,
+  codigoMonto = null, // [CAMBIO] Código exacto de RTM para paquetes especiales (ej. 100006)
   simularModo = 'OK', // 'OK' | 'ERROR' | 'TIMEOUT' (solo aplica en modo mock)
 }) {
   if (PROVEEDOR_MODO_MOCK) {
@@ -311,7 +323,8 @@ async function ejecutarRecarga({
 
   const { usuario, password, apiKey } = obtenerCredencialesRtm();
   const apiKeyTag = apiKey ? `<ApiKey>${escapeXml(apiKey)}</ApiKey>` : '';
-  const montoEntero = Math.round(Number(monto));
+  // [CAMBIO] Usa codigoMonto cuando se trata de paquete especial (ej. 100006 para Sin Límite $100)
+  const montoXml = Math.round(Number(codigoMonto || monto));
 
   const inner =
     `<Recarga>` +
@@ -320,7 +333,7 @@ async function ejecutarRecarga({
     `<Usuario>${escapeXml(usuario)}</Usuario>` +
     `<Password>${escapeXml(password)}</Password>` +
     `<Carrier>${escapeXml(compania)}</Carrier>` +
-    `<Monto>${montoEntero}</Monto>` +
+    `<Monto>${montoXml}</Monto>` +
     `<Phone>${escapeXml(numeroTelefono)}</Phone>` +
     `</Recarga>`;
 

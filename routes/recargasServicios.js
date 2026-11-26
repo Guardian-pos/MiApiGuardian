@@ -362,7 +362,7 @@ router.post('/cobrar-recarga', async (req, res) => {
       rolUsuario = 'empleado',
       compania,
       numeroTelefono,
-      monto,
+      codigoMonto = null, // [CAMBIO] Código de paquete RTM (ej. 100006)
       comisionCliente = 0, // [CAMBIO] Comisión cobrada al cliente final
       folioTicket,
       idempotencyKey, // [CAMBIO] Control anti-duplicados RTM
@@ -443,7 +443,7 @@ router.post('/cobrar-recarga', async (req, res) => {
         folioReferencia: folioRef,
         compania: String(compania).trim(),
         numeroTelefono: String(numeroTelefono).trim(),
-        monto: montoNum,
+        codigoMonto, // [CAMBIO]
         simularModo,
       });
     } catch (errProv) {
