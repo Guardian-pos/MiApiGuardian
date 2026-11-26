@@ -88,16 +88,18 @@
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-user-x"></i><span>Clientes Inactivos</span></div><h3 id="kpi-clientes-inactivos">0</h3><p class="kpi-detalle" id="kpi-clientes-inactivos-det">Suspendidos o baja</p></div>
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-time-five"></i><span>Licencias Vencidas</span></div><h3 id="kpi-licencias-vencidas">0</h3><p class="kpi-detalle negativo" id="kpi-licencias-vencidas-det">Requieren renovación</p></div>
 
-                    <!-- 9 a 15: Ecosistema Tokens (Recargas y Servicios) -->
+                    <!-- 9 a 16: Ecosistema Tokens (Recargas y Servicios) -->
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-coin-stack"></i><span>Venta Total de Tokens</span></div><h3 id="kpi-venta-tokens">$0.00</h3><p class="kpi-detalle positivo" id="kpi-venta-tokens-det">0 abonos acreditados</p></div>
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-group"></i><span>Clientes con Tokens</span></div><h3 id="kpi-clientes-tokens">0</h3><p class="kpi-detalle" id="kpi-clientes-tokens-det">Billeteras activas</p></div>
-                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-wallet"></i><span>Saldo en Bolsa API</span></div><h3 id="kpi-saldo-api">$0.00</h3><p class="kpi-detalle" id="kpi-saldo-api-det">Proveedor Recargas Todo México</p></div>
+                    <!-- [CAMBIO] Saldos separados de la bolsa maestra en RTM -->
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-wallet"></i><span>Saldo Bolsa API Recargas</span></div><h3 id="kpi-saldo-api-recargas">$0.00</h3><p class="kpi-detalle" id="kpi-saldo-api-recargas-det">RTM Tiempo Aire</p></div>
+                    <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-wallet-alt"></i><span>Saldo Bolsa API Servicios</span></div><h3 id="kpi-saldo-api-servicios">$0.00</h3><p class="kpi-detalle" id="kpi-saldo-api-servicios-det">RTM Pago de Servicios</p></div>
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-trending-up"></i><span>Tokens Vendidos por Clientes</span></div><h3 id="kpi-tokens-usados">$0.00</h3><p class="kpi-detalle positivo" id="kpi-tokens-usados-det">Consumo total en POS</p></div>
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-layer"></i><span>Saldo Vivo en Clientes</span></div><h3 id="kpi-saldo-vivo-clientes">$0.00</h3><p class="kpi-detalle" id="kpi-saldo-vivo-clientes-det">Por consumir en billeteras</p></div>
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-mobile-alt"></i><span>Recargas Electrónicas</span></div><h3 id="kpi-recargas-vendidas">$0.00</h3><p class="kpi-detalle positivo" id="kpi-recargas-vendidas-det">0 recargas exitosas</p></div>
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-receipt"></i><span>Pagos de Servicios</span></div><h3 id="kpi-servicios-pagados">$0.00</h3><p class="kpi-detalle positivo" id="kpi-servicios-pagados-det">0 recibos ($0.00 tarifas)</p></div>
 
-                    <!-- 16: Alerta temprana de cobranza -->
+                    <!-- 17: Alerta temprana de cobranza -->
                     <div class="tarjeta-kpi"><div class="kpi-top"><i class="bx bx-calendar-exclamation"></i><span>Por Vencer (Próx. 7 Días)</span></div><h3 id="kpi-por-vencer">0</h3><p class="kpi-detalle negativo" id="kpi-por-vencer-det">Seguimiento preventivo</p></div>
                 </section>
             </div>
@@ -473,7 +475,8 @@
                         <div class="tarjeta-kpi">
                             <div class="kpi-top"><i class="bx bx-receipt"></i><span>Tokens Pago de Servicios</span></div>
                             <h3 id="tokens-saldo-servicios">$0.00</h3>
-                            <p class="kpi-detalle">Sin bono (tarifa fija por recibo: <span id="tokens-tarifa-fija">$7.00</span>)</p>
+                            <!-- [CAMBIO] Tarifa fija inicial $8.00 -->
+                            <p class="kpi-detalle">Sin bono (tarifa fija por recibo: <span id="tokens-tarifa-fija">$8.00</span>)</p>
                         </div>
                     </section>
 

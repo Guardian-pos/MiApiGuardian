@@ -154,10 +154,24 @@ function renderizarMetricasDashboard(m) {
   document.getElementById('kpi-clientes-tokens').innerText = m.clientesConTokens;
   document.getElementById('kpi-clientes-tokens-det').innerText = 'Billeteras con historial/saldo';
 
-  document.getElementById('kpi-saldo-api').innerText = formatoMXN(m.saldoBolsaApi);
-  document.getElementById('kpi-saldo-api-det').innerText = m.saldoBolsaSimulado
-    ? 'Modo simulador (conectar API real)'
-    : 'Saldo en Recargas Todo México';
+  // [CAMBIO] Saldos separados de la bolsa maestra en Recargas Todo México (RTM)
+  const elSaldoRec = document.getElementById('kpi-saldo-api-recargas');
+  const elSaldoRecDet = document.getElementById('kpi-saldo-api-recargas-det');
+  if (elSaldoRec) elSaldoRec.innerText = formatoMXN(m.saldoBolsaRecargasApi ?? m.saldoBolsaApi ?? 0);
+  if (elSaldoRecDet) {
+    elSaldoRecDet.innerText = m.saldoBolsaSimulado
+      ? 'Modo simulador (RTM Recargas)'
+      : 'Saldo real RTM Tiempo Aire';
+  }
+
+  const elSaldoServ = document.getElementById('kpi-saldo-api-servicios');
+  const elSaldoServDet = document.getElementById('kpi-saldo-api-servicios-det');
+  if (elSaldoServ) elSaldoServ.innerText = formatoMXN(m.saldoBolsaServiciosApi ?? 0);
+  if (elSaldoServDet) {
+    elSaldoServDet.innerText = m.saldoBolsaSimulado
+      ? 'Modo simulador (RTM Servicios)'
+      : 'Saldo real RTM Servicios';
+  }
 
   document.getElementById('kpi-tokens-usados').innerText = formatoMXN(m.tokensUsadosTotal);
   document.getElementById('kpi-tokens-usados-det').innerText = `${m.recargasCantidad + m.serviciosCantidad} ventas en POS`;
