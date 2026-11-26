@@ -11,6 +11,10 @@ const proveedorService = require('../services/proveedorRecargasService');
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null; // [CAMBIO]
 const TARIFA_SERVICIO_DEFAULT = Number(process.env.TARIFA_FIJA_SERVICIO || 8); // [CAMBIO] Costo por operación $8.00 MXN
 
+// [CAMBIO] Caché en memoria para catálogo dinámico de RTM (30 minutos)
+const CACHE_CATALOGO_TTL_MS = 30 * 60 * 1000;
+const cacheCatalogo = new Map();
+
 // [CAMBIO] Helpers para correo de abono en horario de México
 function formatearFechaMexico(fechaValor) {
   const fecha = fechaValor instanceof Date ? fechaValor : new Date(fechaValor);
@@ -103,6 +107,41 @@ function generarFolioLite(prefijo, terminalId) {
   const term = String(terminalId || 'T1').trim().toUpperCase();
   return `LITE-${prefijo}-${term}-${Date.now()}`;
 }
+
+// =========================================================================
+// [CAMBIO] GET: Catálogo dinámico de productos RTM (recargas, servicios, tarjetas, todos)
+// =========================================================================
+router.get('/catalogo', async (req, res) => {
+  try {
+    const categoria = String(req.query.categoria || 'todos').trim().toLowerCase();
+    const carrier = String(req.query.carrier || '').trim();
+    const forzar = String(req.query.forzar || '').toLowerCase() === 'true';
+
+    const cacheKey = `${categoria}|${carrier.toUpperCase()}`;
+    const ahora = Date.now();
+
+    if (!forzar && cacheCatalogo.has(cacheKey)) {
+      const cached = cacheCatalogo.get(cacheKey);
+      if (ahora - cached.timestamp < CACHE_CATALOGO_TTL_MS) {
+        return res.json({ exito: true, desdeCache: true, data: cached.data });
+      }
+    }
+
+    const resultado = await proveedorService.obtenerProductos({ categoria, carrier });
+    if (!resultado.exito) {
+      return res.status(502).json({
+        exito: false,
+        error: resultado.mensaje || 'No se pudo obtener el catálogo de RTM.',
+      });
+    }
+
+    cacheCatalogo.set(cacheKey, { timestamp: ahora, data: resultado });
+    return res.json({ exito: true, desdeCache: false, data: resultado });
+  } catch (error) {
+    console.error('>>> [RTM CATALOGO ERROR]:', error);
+    return res.status(500).json({ exito: false, error: error.message });
+  }
+});
 
 // =========================================================================
 // GET: Consultar saldo actual de las dos bolsas por tenantId
@@ -397,7 +436,7 @@ router.post('/cobrar-recarga', async (req, res) => {
     const saldoTrasDescuento = billeteraDescontada.tokensRecargas;
     const saldoInicial = Number((saldoTrasDescuento + montoNum).toFixed(2));
 
-    // 2. Disparar al proveedor (simulador/mock por ahora)
+    // 2. Disparar al proveedor (RTM SOAP 1.2 o mock)
     let respProveedor;
     try {
       respProveedor = await proveedorService.ejecutarRecarga({
@@ -410,7 +449,7 @@ router.post('/cobrar-recarga', async (req, res) => {
     } catch (errProv) {
       respProveedor = {
         exito: false,
-        simulado: true,
+        simulado: process.env.RECARGAS_MODO_MOCK !== 'false',
         codigo: 'EXCEPCION_PROVEEDOR',
         mensaje: errProv.message || 'Error de conexión con el proveedor',
         autorizacion: '',
@@ -531,6 +570,8 @@ router.post('/cobrar-servicio', async (req, res) => {
       rolUsuario = 'empleado',
       nombreServicio,
       referenciaServicio,
+      telefonoCliente = '', // [CAMBIO] Requerido por RTM (<Phone> 10 dígitos)
+      emailCliente = '',    // [CAMBIO] Requerido por RTM (<Email> comprobante)
       montoRecibo,
       comisionCliente, // Opcional: lo que el negocio cobra al cliente final en caja (default = tarifaFija)
       folioTicket,
@@ -571,6 +612,7 @@ router.post('/cobrar-servicio', async (req, res) => {
           data: {
             folioTicket: folioRef,
             autorizacion: operacionPrevia.proveedorRespuesta?.autorizacion || '',
+            codigoPin: operacionPrevia.proveedorRespuesta?.codigoPin || '', // [CAMBIO]
             simulado: operacionPrevia.proveedorRespuesta?.simulado ?? true,
             tarifaAplicada: tarifaFija,
             saldoRestanteServicios: billeteraActual ? billeteraActual.tokensServicios : 0,
@@ -617,15 +659,18 @@ router.post('/cobrar-servicio', async (req, res) => {
         nombreServicio: String(nombreServicio).trim(),
         referenciaServicio: String(referenciaServicio).trim(),
         montoRecibo: montoReciboNum,
+        telefonoCliente, // [CAMBIO]
+        emailCliente,    // [CAMBIO]
         simularModo,
       });
     } catch (errProv) {
       respProveedor = {
         exito: false,
-        simulado: true,
+        simulado: process.env.RECARGAS_MODO_MOCK !== 'false',
         codigo: 'EXCEPCION_PROVEEDOR',
         mensaje: errProv.message || 'Error de conexión con el proveedor',
         autorizacion: '',
+        codigoPin: '',
       };
     }
 
@@ -721,6 +766,7 @@ router.post('/cobrar-servicio', async (req, res) => {
       data: {
         folioTicket: folioRef,
         autorizacion: respProveedor.autorizacion,
+        codigoPin: respProveedor.codigoPin || '', // [CAMBIO] PIN de tarjeta digital si aplica
         simulado: respProveedor.simulado,
         tarifaAplicada: tarifaFija,
         saldoRestanteServicios: saldoTrasDescuento,
@@ -741,7 +787,7 @@ router.get('/dashboard-metricas', async (req, res) => {
     const ahora = new Date();
     const en7Dias = new Date(ahora.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const [licencias, billeteras, resumenHistorial] = await Promise.all([
+    const [licencias, billeteras, resumenHistorial, saldoProveedor] = await Promise.all([
       Licencia.find({}, 'estado fecha_expiracion metodo_pago purchaseOrder'),
       BilleteraTokens.find({}, 'tenantId tokensRecargas tokensServicios totalAbonadoRecargas totalAbonadoServicios'),
       HistorialTokens.aggregate([
@@ -756,6 +802,7 @@ router.get('/dashboard-metricas', async (req, res) => {
           },
         },
       ]),
+      proveedorService.obtenerSaldo().catch(() => ({ exito: false, saldoRecargas: 0, saldoServicios: 0 })), // [CAMBIO]
     ]);
 
     let totalLicencias = licencias.length;
@@ -826,7 +873,9 @@ router.get('/dashboard-metricas', async (req, res) => {
     const recargas = mapaHist.COBRO_RECARGA || { totalOperacion: 0, cantidad: 0 };
     const servicios = mapaHist.COBRO_SERVICIO || { totalOperacion: 0, totalTarifas: 0, cantidad: 0 };
 
-    const saldoBolsaApi = Number(process.env.SALDO_API_MOCK || 0);
+    const saldoBolsaApi = saldoProveedor?.exito
+      ? Number(((saldoProveedor.saldoRecargas || 0) + (saldoProveedor.saldoServicios || 0)).toFixed(2))
+      : Number(process.env.SALDO_API_MOCK || 0);
 
     return res.json({
       exito: true,
@@ -843,6 +892,8 @@ router.get('/dashboard-metricas', async (req, res) => {
         ventaTokensCantidad: Number(abonos.cantidad || 0),
         clientesConTokens,
         saldoBolsaApi,
+        saldoBolsaRecargasApi: Number(saldoProveedor?.saldoRecargas || 0), // [CAMBIO]
+        saldoBolsaServiciosApi: Number(saldoProveedor?.saldoServicios || 0), // [CAMBIO]
         saldoBolsaSimulado: process.env.RECARGAS_MODO_MOCK !== 'false',
         saldoVivoClientes: Number(saldoVivoClientes.toFixed(2)),
         recargasMonto: Number(recargas.totalOperacion || 0),
