@@ -31,7 +31,7 @@ function unescapeXml(valor) {
 }
 
 function extraerTag(xml, tag) {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const regex = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i');
   const match = String(xml || '').match(regex);
   return match ? match[1].trim() : '';
 }
@@ -47,7 +47,7 @@ function obtenerCredencialesRtm() {
   return { usuario, password, apiKey };
 }
 
-// [CAMBIO] Cliente SOAP 1.2 (sin WSDL) usando fetch nativo con timeout de 90s
+// [CAMBIO] Cliente SOAP 1.2 (sin WSDL) usando fetch nativo con timeout de 90s y parser tolerante a atributos/namespaces
 async function llamarRtmSoap(method, innerXml) {
   const action = `${RTM_ENDPOINT}#${method}`;
   const envelope =
@@ -71,15 +71,35 @@ async function llamarRtmSoap(method, innerXml) {
 
   const rawText = await response.text();
   if (!response.ok) {
+    console.error(`>>> [RTM HTTP ${response.status}]:`, rawText.slice(0, 600));
     throw new Error(`HTTP ${response.status} al conectar con Recargas Todo México.`);
   }
 
-  const match = rawText.match(/<return>([\s\S]*?)<\/return>/i);
-  if (!match) {
-    throw new Error('Respuesta SOAP sin etiqueta <return>.');
+  // [CAMBIO] Soporta <return>, <return xsi:type="...">, <ns1:return> o <*Return>
+  const match =
+    rawText.match(/<(?:[a-zA-Z0-9_-]+:)?return(?:\s[^>]*)?>([\s\S]*?)<\/(?:[a-zA-Z0-9_-]+:)?return>/i) ||
+    rawText.match(/<(?:[a-zA-Z0-9_-]+:)?[a-zA-Z0-9_]*Return(?:\s[^>]*)?>([\s\S]*?)<\/(?:[a-zA-Z0-9_-]+:)?[a-zA-Z0-9_]*Return>/i);
+
+  if (match) {
+    return unescapeXml(match[1]);
   }
 
-  return unescapeXml(match[1]);
+  // [CAMBIO] Si llegó un SOAP Fault, extrae su descripción real
+  const faultMatch =
+    rawText.match(/<(?:[a-zA-Z0-9_-]+:)?faultstring(?:\s[^>]*)?>([\s\S]*?)<\/(?:[a-zA-Z0-9_-]+:)?faultstring>/i) ||
+    rawText.match(/<(?:[a-zA-Z0-9_-]+:)?Text(?:\s[^>]*)?>([\s\S]*?)<\/(?:[a-zA-Z0-9_-]+:)?Text>/i);
+
+  if (faultMatch) {
+    throw new Error(`SOAP Fault RTM: ${unescapeXml(faultMatch[1]).trim()}`);
+  }
+
+  // [CAMBIO] Si la respuesta ya trajo directo <Resultado> sin envolver en <return>
+  if (/<Resultado>/i.test(rawText)) {
+    return unescapeXml(rawText);
+  }
+
+  console.error('>>> [RTM RAW SOAP SIN RETURN]:', rawText.slice(0, 800));
+  throw new Error(`Respuesta SOAP inesperada: ${rawText.replace(/<[^>]+>/g, ' ').trim().slice(0, 180)}`);
 }
 
 // [CAMBIO] Parsea el XML de obtenerProductos a JSON limpio por Carrier y Producto
