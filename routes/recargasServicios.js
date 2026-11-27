@@ -362,6 +362,7 @@ router.post('/cobrar-recarga', async (req, res) => {
       rolUsuario = 'empleado',
       compania,
       numeroTelefono,
+      monto, // [CAMBIO] Monto real MXN de la recarga
       codigoMonto = null, // [CAMBIO] Código de paquete RTM (ej. 100006)
       comisionCliente = 0, // [CAMBIO] Comisión cobrada al cliente final
       folioTicket,
@@ -443,6 +444,7 @@ router.post('/cobrar-recarga', async (req, res) => {
         folioReferencia: folioRef,
         compania: String(compania).trim(),
         numeroTelefono: String(numeroTelefono).trim(),
+        monto: montoNum, // [CAMBIO] Pasa el monto real cuando no hay codigoMonto
         codigoMonto, // [CAMBIO]
         simularModo,
       });
