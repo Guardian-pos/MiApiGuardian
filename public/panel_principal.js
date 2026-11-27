@@ -1006,7 +1006,7 @@ async function cargarBilleteraYHistorial() {
 function renderizarHistorialTokens(lista) {
   const tbody = document.getElementById('tabla-historial-tokens');
   if (!Array.isArray(lista) || lista.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#a0a0ab;">Sin movimientos de tokens registrados aún.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#a0a0ab;">Sin movimientos de tokens registrados aún.</td></tr>'; // [CAMBIO] colspan 9
     return;
   }
 
@@ -1015,6 +1015,9 @@ function renderizarHistorialTokens(lista) {
     const fecha = h.createdAt ? new Date(h.createdAt).toLocaleString('es-MX') : '-';
     const claseEstado = h.estado === 'EXITOSO' ? 'badge-ok' : 'badge-error';
     const extra = h.bolsa === 'RECARGAS' ? `Bono: ${formatoMXN(h.bonoAplicado)}` : `Tarifa: ${formatoMXN(h.tarifaFija)}`;
+    const autorizacion = h.proveedorRespuesta?.autorizacion
+      ? String(h.proveedorRespuesta.autorizacion).trim()
+      : '-'; // [CAMBIO] Extrae el folio de autorizacion RTM
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${fecha}</td>
@@ -1025,6 +1028,7 @@ function renderizarHistorialTokens(lista) {
       <td>${formatoMXN(h.saldoAnterior)} → <strong>${formatoMXN(h.saldoPosterior)}</strong></td>
       <td><span class="badge-estado ${claseEstado}">${h.estado}</span></td>
       <td style="font-family:monospace;font-size:12px;">${h.folioReferencia || '-'}</td>
+      <td style="font-family:monospace;font-size:12px;color:#34d399;font-weight:bold;">${autorizacion}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -1044,7 +1048,7 @@ function limpiarPantallaTokens() {
   document.getElementById('tokens-bono-grupo').style.display = 'block';
   document.getElementById('tokens-preview-total').textContent = 'Ingresa un monto para calcular el total de tokens a acreditar.';
   document.getElementById('tabla-historial-tokens').innerHTML =
-    '<tr><td colspan="8" style="text-align:center;color:#a0a0ab;">Selecciona un cliente para ver su historial.</td></tr>';
+    '<tr><td colspan="9" style="text-align:center;color:#a0a0ab;">Selecciona un cliente para ver su historial.</td></tr>'; // [CAMBIO] colspan 9
 }
 
 async function abonarTokensCliente() {
