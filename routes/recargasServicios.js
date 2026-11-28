@@ -7,6 +7,7 @@ const Movimiento = require('../models/movimientos');
 const Licencia = require('../models/Licencia'); // [CAMBIO]
 const Empleado = require('../models/Empleado'); // [CAMBIO]
 const proveedorService = require('../services/proveedorRecargasService');
+const { requerirAdmin, requerirTerminal } = require('../middleware/seguridad'); // [CAMBIO]
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null; // [CAMBIO]
 const TARIFA_SERVICIO_DEFAULT = Number(process.env.TARIFA_FIJA_SERVICIO || 8); // [CAMBIO] Costo por operación $8.00 MXN
@@ -144,9 +145,9 @@ router.get('/catalogo', async (req, res) => {
 });
 
 // =========================================================================
-// GET: Consultar saldo actual de las dos bolsas por tenantId
+// GET: Consultar saldo actual de las dos bolsas por tenantId (protegida)
 // =========================================================================
-router.get('/saldo/:tenantId', async (req, res) => {
+router.get('/saldo/:tenantId', requerirTerminal, async (req, res) => { // [CAMBIO]
   try {
     const cleanTenantId = normalizarTenant(req.params.tenantId);
     if (!cleanTenantId) {
@@ -206,9 +207,9 @@ router.get('/estatus/:folio', async (req, res) => {
 });
 
 // =========================================================================
-// GET: Consultar historial de movimientos de tokens por tenantId
+// GET: Consultar historial de movimientos de tokens por tenantId (protegida)
 // =========================================================================
-router.get('/historial/:tenantId', async (req, res) => {
+router.get('/historial/:tenantId', requerirTerminal, async (req, res) => { // [CAMBIO]
   try {
     const cleanTenantId = normalizarTenant(req.params.tenantId);
     const { bolsa, limite = 50 } = req.query;
@@ -230,9 +231,9 @@ router.get('/historial/:tenantId', async (req, res) => {
 });
 
 // =========================================================================
-// POST: Abonar saldo desde el Panel Admin (Validación de Empleado + Correo)
+// POST: Abonar saldo desde el Panel Admin (protegida con requerirAdmin)
 // =========================================================================
-router.post('/abonar', async (req, res) => {
+router.post('/abonar', requerirAdmin, async (req, res) => { // [CAMBIO]
   try {
     const {
       tenantId,
@@ -350,9 +351,9 @@ router.post('/abonar', async (req, res) => {
 });
 
 // =========================================================================
-// POST: Cobrar Recarga Electrónica (Descuento atómico -> Proveedor -> Movimiento 'recarga' o Reembolso)
+// POST: Cobrar Recarga Electrónica (protegida con requerirTerminal)
 // =========================================================================
-router.post('/cobrar-recarga', async (req, res) => {
+router.post('/cobrar-recarga', requerirTerminal, async (req, res) => { // [CAMBIO]
   try {
     const {
       tenantId,
@@ -560,9 +561,9 @@ router.post('/cobrar-recarga', async (req, res) => {
 });
 
 // =========================================================================
-// POST: Cobrar Pago de Servicio (Monto + Tarifa Fija -> Proveedor -> Movimiento 'servicio' o Reembolso)
+// POST: Cobrar Pago de Servicio (protegida con requerirTerminal)
 // =========================================================================
-router.post('/cobrar-servicio', async (req, res) => {
+router.post('/cobrar-servicio', requerirTerminal, async (req, res) => { // [CAMBIO]
   try {
     const {
       tenantId,
@@ -782,9 +783,9 @@ router.post('/cobrar-servicio', async (req, res) => {
 });
 
 // =========================================================================
-// [CAMBIO] GET: Métricas reales consolidadas para el Dashboard (16 KPIs)
+// [CAMBIO] GET: Métricas reales consolidadas para el Dashboard (protegida con requerirAdmin)
 // =========================================================================
-router.get('/dashboard-metricas', async (req, res) => {
+router.get('/dashboard-metricas', requerirAdmin, async (req, res) => { // [CAMBIO]
   try {
     const ahora = new Date();
     const en7Dias = new Date(ahora.getTime() + 7 * 24 * 60 * 60 * 1000);

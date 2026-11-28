@@ -8,6 +8,16 @@ let listaGlobalEmpleados = [];
 let sesionActual = null;
 let itemLicenciaSeleccionado = null;
 let empleadoEnEdicionId = null;
+// [CAMBIO] Token JWT solo en memoria RAM (nunca en localStorage) y enviado automático en cada petición /api/
+let tokenAdminMemoria = null;
+const _fetchOriginal = window.fetch.bind(window);
+window.fetch = (url, options = {}) => {
+  const opts = { ...options };
+  if (tokenAdminMemoria && typeof url === 'string' && url.includes('/api/')) {
+    opts.headers = { ...(opts.headers || {}), Authorization: `Bearer ${tokenAdminMemoria}` };
+  }
+  return _fetchOriginal(url, opts);
+};
 
 // =========================================================
 // NAVEGACIÓN DEL MENÚ LATERAL Y BOTÓN ACTUALIZAR
@@ -77,6 +87,7 @@ async function realizarLogin() {
 
     if (resultado.exito) {
       sesionActual = resultado.empleado;
+      tokenAdminMemoria = resultado.token || null; // [CAMBIO]
       document.getElementById('pantalla-login').style.display = 'none';
       document.getElementById('app-principal').style.display = 'flex';
       document.getElementById('lbl-saludo-nombre').innerText = sesionActual.nombre || 'Admin';
@@ -95,6 +106,7 @@ async function realizarLogin() {
 
 function cerrarSesion() {
   sesionActual = null;
+  tokenAdminMemoria = null; // [CAMBIO] Limpia token de memoria al cerrar sesión
   document.getElementById('login-usuario').value = '';
   document.getElementById('login-password').value = '';
   document.getElementById('app-principal').style.display = 'none';

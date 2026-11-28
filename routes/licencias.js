@@ -8,6 +8,7 @@ const BilleteraTokens = require('../models/BilleteraTokens'); // [CAMBIO] Para d
 const HistorialTokens = require('../models/HistorialTokens'); // [CAMBIO] Para depuración en cascada de trials
 const { Resend } = require('resend');           // [CAMBIO]
 const bcrypt = require('bcrypt');
+const { firmarToken, requerirAdmin } = require('../middleware/seguridad'); // [CAMBIO]
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null; // [CAMBIO]
 
@@ -46,7 +47,8 @@ router.post('/crear', async (req, res) => {
 });
 
 // RUTA: Consultar todas las licencias (para alimentar el panel de administración web)
-router.get('/', async (req, res) => {
+// [CAMBIO] Protegida: solo administradores autenticados pueden ver la lista completa
+router.get('/', requerirAdmin, async (req, res) => {
     try {
         const licencias = await Licencia.find();
         res.status(200).json(licencias);
@@ -58,8 +60,49 @@ router.get('/', async (req, res) => {
     }
 });
 
+// [CAMBIO] Recupera únicamente la licencia vinculada a un hardwareId y emite token de terminal
+router.post('/recuperar-por-hardware', async (req, res) => {
+    try {
+        const hwId = String(req.body?.identificador_unico || '').trim();
+        if (!hwId || hwId === 'unknown_device') {
+            return res.status(400).json({ exito: false, error: 'identificador_unico inválido.' });
+        }
+
+        const licencia = await Licencia.findOne({ 'hardwareBinding.identificador_unico': hwId });
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: 'Dispositivo sin licencia vinculada.' });
+        }
+
+        const tenantId = String(licencia.client?.numero_cliente || '').trim().toLowerCase();
+        const tokenTerminal = firmarToken(
+            {
+                tipo: 'terminal',
+                tenantId,
+                licenseKey: licencia.licenseKey,
+                hardwareId: hwId,
+            },
+            60 * 60 * 24 * 30
+        );
+
+        return res.status(200).json({
+            exito: true,
+            token: tokenTerminal,
+            datos: {
+                licenseKey: licencia.licenseKey,
+                numero_cliente: licencia.client?.numero_cliente || '',
+                nombre_negocio: licencia.client?.nombre_negocio || '',
+                estado: licencia.estado,
+                fecha_expiracion: licencia.fecha_expiracion,
+                usuarios: licencia.usuarios || [],
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
 // RUTA: Actualizar o extender la vigencia/estado de una licencia desde el panel web (por ID)
-router.put('/actualizar/:id', async (req, res) => {
+router.put('/actualizar/:id', requerirAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const {
@@ -272,9 +315,20 @@ router.post('/activar', async (req, res) => {
         await licencia.save();
 
         // 6. Responder con los datos críticos que la tablet necesita guardar localmente
+        const tokenTerminal = firmarToken(
+          {
+              tipo: 'terminal',
+              tenantId: String(licencia.client?.numero_cliente || '').trim().toLowerCase(),
+              licenseKey: licencia.licenseKey,
+              hardwareId: licencia.hardwareBinding?.identificador_unico || '',
+          },
+          60 * 60 * 24 * 30
+        ); // [CAMBIO]
+
         res.status(200).json({
             exito: true,
             mensaje: "Licencia activada y vinculada correctamente.",
+            token: tokenTerminal, // [CAMBIO]
             datos: {
                 numero_cliente: licencia.client.numero_cliente,
                 nombre_negocio: licencia.client.nombre_negocio,
@@ -338,9 +392,20 @@ router.post('/validar-estado', async (req, res) => {
             }
         }
 
+        const tokenTerminal = firmarToken(
+            {
+                tipo: 'terminal',
+                tenantId: String(licencia.client?.numero_cliente || '').trim().toLowerCase(),
+                licenseKey: licencia.licenseKey,
+                hardwareId: licencia.hardwareBinding?.identificador_unico || '',
+            },
+            60 * 60 * 24 * 30
+        ); // [CAMBIO]
+
         res.status(200).json({
             exito: true,
             mensaje: "Licencia vigente y activa.",
+            token: tokenTerminal, // [CAMBIO]
             datos: {
                 numero_cliente: licencia.client.numero_cliente,
                 fecha_expiracion: licencia.fecha_expiracion,
@@ -350,6 +415,25 @@ router.post('/validar-estado', async (req, res) => {
 
     } catch (error) {
         res.status(500).json({ exito: false, error: error.message });
+    }
+});
+
+// [CAMBIO] Lista únicamente los usuarios de una licencia sin exponer toda la colección
+router.post('/usuarios/listar', async (req, res) => {
+    try {
+        const cleanKey = String(req.body?.licenseKey || '').trim().toUpperCase();
+        if (!cleanKey) {
+            return res.status(400).json({ exito: false, error: 'licenseKey es obligatorio.' });
+        }
+        const licencia = await Licencia.findOne({
+            licenseKey: new RegExp(`^${cleanKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+        });
+        if (!licencia) {
+            return res.status(404).json({ exito: false, error: 'Licencia no encontrada.' });
+        }
+        return res.status(200).json({ exito: true, usuarios: licencia.usuarios || [] });
+    } catch (error) {
+        return res.status(500).json({ exito: false, error: error.message });
     }
 });
 
@@ -608,7 +692,7 @@ router.post('/web/crear-password', async (req, res) => {
 });
 
 // [CAMBIO] RUTA: Eliminar en cascada licencias trial vencidas y toda su información de prueba
-router.delete('/trials/depurar', async (req, res) => {
+router.delete('/trials/depurar', requerirAdmin, async (req, res) => { // [CAMBIO]
     try {
         const { ids, adminId } = req.body;
 
